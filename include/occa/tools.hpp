@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include "occa/defines.hpp"
+#include "occa/sys.hpp"
 #include "occa/parser/types.hpp"
 
 #if   (OCCA_OS & LINUX_OS)
@@ -62,8 +63,6 @@ namespace occa {
 
     void signalExit(int sig);
 
-    std::string var(const std::string &var);
-
     void endDirWithSlash(std::string &dir);
 
     class envInitializer_t {
@@ -72,63 +71,12 @@ namespace occa {
     extern envInitializer_t envInitializer;
   }
 
-  namespace sys {
-    int call(const std::string &cmdline);
-    int call(const std::string &cmdline, std::string &output);
-
-    std::string expandEnvVariables(const std::string &str);
-
-    void rmdir(const std::string &dir);
-    int mkdir(const std::string &dir);
-    void mkpath(const std::string &dir);
-
-    bool dirExists(const std::string &dir_);
-    bool fileExists(const std::string &filename_,
-                    const int flags = 0);
-
-    std::string getFilename(const std::string &filename);
-
-    void absolutePathVec(const std::string &path_,
-                         stringVector_t &pathVec);
-
-    stringVector_t absolutePathVec(const std::string &path);
-  }
-
   // Kernel Caching
   namespace kc {
     extern std::string sourceFile;
     extern std::string binaryFile;
   }
   //==================================
-
-  class mutex_t {
-  public:
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-    pthread_mutex_t mutexHandle;
-#else
-    HANDLE mutexHandle;
-#endif
-
-    mutex_t();
-    void free();
-
-    void lock();
-    void unlock();
-  };
-
-  class fnvOutput_t {
-  public:
-    int h[8];
-
-    fnvOutput_t();
-
-    bool operator == (const fnvOutput_t &fo);
-    bool operator != (const fnvOutput_t &fo);
-
-    void mergeWith(const fnvOutput_t &fo);
-
-    operator std::string ();
-  };
 
   double currentTime();
 
@@ -182,6 +130,20 @@ namespace occa {
 
 
   //---[ Hash Functions ]-------------------------
+  class fnvOutput_t {
+  public:
+    int h[8];
+
+    fnvOutput_t();
+
+    bool operator == (const fnvOutput_t &fo);
+    bool operator != (const fnvOutput_t &fo);
+
+    void mergeWith(const fnvOutput_t &fo);
+
+    operator std::string ();
+  };
+
   fnvOutput_t fnv(const void *ptr, uintptr_t bytes);
 
   template <class TM>

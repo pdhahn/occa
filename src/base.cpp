@@ -2,33 +2,13 @@
 #include "occa/library.hpp"
 #include "occa/parser/parser.hpp"
 
-#include "occa/Serial.hpp"
-#include "occa/OpenCL.hpp"
-#include "occa/CUDA.hpp"
+// #include "occa/Serial.hpp"
+// #include "occa/OpenCL.hpp"
+// #include "occa/CUDA.hpp"
 
 // Use events for timing!
 
 namespace occa {
-  //---[ Typedefs ]-------------------------------
-  std::string deviceType(int type) {
-    if(type & CPU)     return "CPU";
-    if(type & GPU)     return "GPU";
-    if(type & FPGA)    return "FPGA";
-    if(type & XeonPhi) return "Xeon Phi";
-
-    return "N/A";
-  }
-
-  std::string vendor(int type) {
-    if(type & Intel)  return "Intel";
-    if(type & AMD)    return "AMD";
-    if(type & NVIDIA) return "NVIDIA";
-    if(type & Altera) return "Altera";
-
-    return "N/A";
-  }
-  //==============================================
-
   //---[ Mode ]-----------------------------------
   std::string modeToStr(const occa::mode &m) {
     if(m & Serial)   return "Serial";
@@ -69,12 +49,12 @@ namespace occa {
       ++count;
     }
 
-    if(info_ & Serial)   ret += std::string(count++ ? ", " : "") + "Serial";
-    if(info_ & OpenMP)   ret += std::string(count++ ? ", " : "") + "OpenMP";
-    if(info_ & OpenCL)   ret += std::string(count++ ? ", " : "") + "OpenCL";
-    if(info_ & CUDA)     ret += std::string(count++ ? ", " : "") + "CUDA";
-    if(info_ & HSA)      ret += std::string(count++ ? ", " : "") + "HSA";
-    if(info_ & Pthreads) ret += std::string(count++ ? ", " : "") + "Pthreads";
+    if(info_ == Serial)   ret += std::string(count++ ? ", " : "") + "Serial";
+    if(info_ == OpenMP)   ret += std::string(count++ ? ", " : "") + "OpenMP";
+    if(info_ == OpenCL)   ret += std::string(count++ ? ", " : "") + "OpenCL";
+    if(info_ == CUDA)     ret += std::string(count++ ? ", " : "") + "CUDA";
+    if(info_ == HSA)      ret += std::string(count++ ? ", " : "") + "HSA";
+    if(info_ == Pthreads) ret += std::string(count++ ? ", " : "") + "Pthreads";
 
     if(count)
       return ret;
@@ -97,10 +77,6 @@ namespace occa {
 
   void setVerboseCompilation(const bool value) {
     verboseCompilation_f = value;
-  }
-
-  namespace flags {
-    const int checkCacheDir = (1 << 0);
   }
 
   bool hasSerialEnabled() {
@@ -1121,7 +1097,7 @@ namespace occa {
       mHandle->uvaPtr = mHandle->mappedPtr;
     }
     else{
-      mHandle->uvaPtr = cpu::malloc(mHandle->size);
+      mHandle->uvaPtr = sys::malloc(mHandle->size);
     }
 
     ptrRange_t uvaRange;
@@ -2525,21 +2501,22 @@ namespace occa {
   }
   //   =================================
 
+  // [REFORMAT]
   void printAvailableDevices() {
-    std::stringstream ss;
-    ss << "==============o=======================o==========================================\n";
-    ss << cpu::getDeviceListInfo();
-#if OCCA_OPENCL_ENABLED
-    ss << "==============o=======================o==========================================\n";
-    ss << cl::getDeviceListInfo();
-#endif
-#if OCCA_CUDA_ENABLED
-    ss << "==============o=======================o==========================================\n";
-    ss << cuda::getDeviceListInfo();
-#endif
-    ss << "==============o=======================o==========================================\n";
+//     std::stringstream ss;
+//     ss << "==============o=======================o==========================================\n";
+//     ss << sys::getDeviceListInfo();
+// #if OCCA_OPENCL_ENABLED
+//     ss << "==============o=======================o==========================================\n";
+//     ss << cl::getDeviceListInfo();
+// #endif
+// #if OCCA_CUDA_ENABLED
+//     ss << "==============o=======================o==========================================\n";
+//     ss << cuda::getDeviceListInfo();
+// #endif
+//     ss << "==============o=======================o==========================================\n";
 
-    std::cout << ss.str();
+//     std::cout << ss.str();
   }
 
   deviceIdentifier::deviceIdentifier() :
@@ -2641,36 +2618,4 @@ namespace occa {
     return 0;
   }
   //==============================================
-
-  namespace cl {
-    occa::device wrapDevice(void *platformIDPtr,
-                            void *deviceIDPtr,
-                            void *contextPtr) {
-#if OCCA_OPENCL_ENABLED
-      return cl::wrapDevice(*((cl_platform_id*) platformIDPtr),
-                            *((cl_device_id*)   deviceIDPtr),
-                            *((cl_context*)     contextPtr));
-#else
-      OCCA_CHECK(false,
-                 "OCCA was not compiled with [OpenCL] enabled");
-
-      return occa::host();
-#endif
-    }
-  }
-
-  namespace cuda {
-    occa::device wrapDevice(void *devicePtr,
-                            void *contextPtr) {
-#if OCCA_CUDA_ENABLED
-      return cuda::wrapDevice(*((CUdevice*) devicePtr),
-                              *((CUcontext*) contextPtr));
-#else
-      OCCA_CHECK(false,
-                 "OCCA was not compiled with [CUDA] enabled");
-
-      return occa::host();
-#endif
-    }
-  }
 }

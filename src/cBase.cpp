@@ -916,32 +916,7 @@ int OCCA_RFUNC occaSysCall(const char *cmdline,
 
 
 //---[ Wrappers ]---------------------
-#if OCCA_OPENCL_ENABLED
-occaDevice OCCA_RFUNC occaWrapOpenCLDevice(cl_platform_id platformID,
-                                           cl_device_id deviceID,
-                                           cl_context context) {
-  occa::device device = occa::cl::wrapDevice(platformID, deviceID, context);
-
-  return (occaDevice) device.getDHandle();
-}
-#endif
-
-#if OCCA_CUDA_ENABLED
-occaDevice OCCA_RFUNC occaWrapCudaDevice(CUdevice device, CUcontext context) {
-  occa::device device_ = occa::cuda::wrapDevice(device, context);
-
-  return (occaDevice) device_.getDHandle();
-}
-#endif
-
-#if OCCA_HSA_ENABLED
-occaDevice OCCA_RFUNC occaWrapHSADevice() {
-  occa::device device_ = occa::hsa::wrapDevice();
-
-  return (occaDevice) device_.getDHandle();
-}
-#endif
-
+// [REFORMAT] wrapDevice
 occaMemory OCCA_RFUNC occaDeviceWrapMemory(occaDevice device,
                                            void *handle_,
                                            const uintptr_t bytes) {

@@ -13,29 +13,29 @@ namespace occa {
     std::string notSupported = "N/A";
 
     std::string baseCompilerFlag(const int vendor_){
-      if(vendor_ & (cpu::vendor::GNU |
-                    cpu::vendor::LLVM)){
+      if(vendor_ & (sys::vendor::GNU |
+                    sys::vendor::LLVM)){
 
         return "-fopenmp";
       }
-      else if(vendor_ & (cpu::vendor::Intel |
-                         cpu::vendor::Pathscale)){
+      else if(vendor_ & (sys::vendor::Intel |
+                         sys::vendor::Pathscale)){
 
         return "-openmp";
       }
-      else if(vendor_ & cpu::vendor::IBM){
+      else if(vendor_ & sys::vendor::IBM){
         return "-qsmp";
       }
-      else if(vendor_ & cpu::vendor::PGI){
+      else if(vendor_ & sys::vendor::PGI){
         return "-mp";
       }
-      else if(vendor_ & cpu::vendor::HP){
+      else if(vendor_ & sys::vendor::HP){
         return "+Oopenmp";
       }
-      else if(vendor_ & cpu::vendor::VisualStudio){
+      else if(vendor_ & sys::vendor::VisualStudio){
         return "/openmp";
       }
-      else if(vendor_ & cpu::vendor::Cray){
+      else if(vendor_ & sys::vendor::Cray){
         return "";
       }
 
@@ -264,8 +264,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(OpenMP, Kernel);
 
-    data_.dlHandle = cpu::dlopen(binaryFile, hash);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName, hash);
+    data_.dlHandle = sys::dlopen(binaryFile, hash);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName, hash);
 
     releaseHash(hash, 0);
 
@@ -282,8 +282,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(OpenMP, Kernel);
 
-    data_.dlHandle = cpu::dlopen(filename);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName);
+    data_.dlHandle = sys::dlopen(filename);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName);
 
     return this;
   }
@@ -326,7 +326,7 @@ namespace occa {
 
     int occaInnerId0 = 0, occaInnerId1 = 0, occaInnerId2 = 0;
 
-    cpu::runFunction(tmpKernel,
+    sys::runFunction(tmpKernel,
                      occaKernelArgs,
                      occaInnerId0, occaInnerId1, occaInnerId2,
                      argc, data_.vArgs);
@@ -565,7 +565,7 @@ namespace occa {
 
   template <>
   void memory_t<OpenMP>::mappedFree(){
-    cpu::free(handle);
+    sys::free(handle);
     handle    = NULL;
     mappedPtr = NULL;
 
@@ -575,11 +575,11 @@ namespace occa {
   template <>
   void memory_t<OpenMP>::free(){
     if(isATexture()){
-      cpu::free(textureInfo.arg);
+      sys::free(textureInfo.arg);
       textureInfo.arg = NULL;
     }
     else{
-      cpu::free(handle);
+      sys::free(handle);
       handle = NULL;
     }
 
@@ -601,7 +601,7 @@ namespace occa {
 
     getEnvironmentVariables();
 
-    cpu::addSharedBinaryFlagsTo(compiler, compilerFlags);
+    sys::addSharedBinaryFlagsTo(compiler, compilerFlags);
   }
 
   template <>
@@ -644,11 +644,11 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(OpenMP, Device);
 
-    data_.vendor         = cpu::compilerVendor(compiler);
+    data_.vendor         = sys::compilerVendor(compiler);
     data_.OpenMPFlag     = omp::compilerFlag(data_.vendor, compiler);
     data_.supportsOpenMP = (data_.OpenMPFlag != omp::notSupported);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -782,11 +782,11 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(OpenMP, Device);
 
-    data_.vendor         = cpu::compilerVendor(compiler);
+    data_.vendor         = sys::compilerVendor(compiler);
     data_.OpenMPFlag     = omp::compilerFlag(data_.vendor, compiler);
     data_.supportsOpenMP = (data_.OpenMPFlag != omp::notSupported);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -800,7 +800,7 @@ namespace occa {
 
     compilerFlags = compilerFlags_;
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -1001,7 +1001,7 @@ namespace occa {
     mem->dHandle = this;
     mem->size    = bytes;
 
-    mem->handle = cpu::malloc(bytes);
+    mem->handle = sys::malloc(bytes);
 
     if(src != NULL)
       ::memcpy(mem->handle, src, bytes);
@@ -1026,7 +1026,7 @@ namespace occa {
     mem->textureInfo.h = dims.y;
     mem->textureInfo.d = dims.z;
 
-    mem->handle = cpu::malloc(mem->size);
+    mem->handle = sys::malloc(mem->size);
 
     ::memcpy(mem->textureInfo.arg, src, mem->size);
 
@@ -1047,7 +1047,7 @@ namespace occa {
 
   template <>
   uintptr_t device_t<OpenMP>::memorySize(){
-    return cpu::installedRAM();
+    return sys::installedRAM();
   }
 
   template <>

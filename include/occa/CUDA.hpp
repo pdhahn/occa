@@ -80,6 +80,10 @@ namespace occa {
                           const uintptr_t bytes,
                           CUstream usingStream,
                           const bool isAsync);
+
+    occa::device wrapDevice(CUdevice device, CUcontext context);
+
+    CUevent& event(streamTag tag);
   }
 
   extern const CUarray_format cudaFormats[8];

@@ -17,7 +17,7 @@
 #endif
 
 namespace occa {
-  //---[ Data Structs ]---------------
+  //---[ Data Structs ]-----------------
   struct OpenCLKernelData_t {
     int platform, device;
 
@@ -35,21 +35,40 @@ namespace occa {
     cl_device_id   deviceID;
     cl_context     context;
   };
-  //==================================
+  //====================================
 
 
-  //---[ Helper Functions ]-----------
+  //---[ Helper Functions ]-------------
   namespace cl {
+    namespace info {
+      static const int CPU     = (1 << 0);
+      static const int GPU     = (1 << 1);
+      static const int FPGA    = (1 << 3);
+      static const int XeonPhi = (1 << 2);
+      static const int anyType = (CPU | GPU | FPGA | XeonPhi);
+
+      static const int Intel     = (1 << 4);
+      static const int AMD       = (1 << 5);
+      static const int Altera    = (1 << 6);
+      static const int NVIDIA    = (1 << 7);
+      static const int anyVendor = (Intel | AMD | Altera | NVIDIA);
+
+      static const int any = (anyType | anyVendor);
+
+      std::string deviceType(int type);
+      std::string vendor(int type);
+    }
+
     cl_device_type deviceType(int type);
 
     int getPlatformCount();
 
     cl_platform_id platformID(int pID);
 
-    int getDeviceCount(int type = any);
-    int getDeviceCountInPlatform(int pID, int type = any);
+    int getDeviceCount(int type = cl::info::any);
+    int getDeviceCountInPlatform(int pID, int type = cl::info::any);
 
-    cl_device_id deviceID(int pID, int dID, int type = any);
+    cl_device_id deviceID(int pID, int dID, int type = cl::info::any);
 
     std::string deviceStrInfo(cl_device_id clDID,
                               cl_device_info clInfo);
@@ -85,6 +104,12 @@ namespace occa {
                            const std::string &binaryFile,
                            const std::string &hash = "");
 
+    occa::device wrapDevice(cl_platform_id platformID,
+                            cl_device_id deviceID,
+                            cl_context context);
+
+    cl_event& event(streamTag tag);
+
     bool imageFormatIsSupported(cl_image_format &f,
                                 cl_image_format *fs,
                                 const int formatCount);
@@ -96,10 +121,10 @@ namespace occa {
 
   template <>
   void* formatType::format<occa::OpenCL>() const;
-  //==================================
+  //====================================
 
 
-  //---[ Kernel ]---------------------
+  //---[ Kernel ]-----------------------
   template <>
   kernel_t<OpenCL>::kernel_t();
 
@@ -145,10 +170,10 @@ namespace occa {
 
   template <>
   void kernel_t<OpenCL>::free();
-  //==================================
+  //====================================
 
 
-  //---[ Memory ]---------------------
+  //---[ Memory ]-----------------------
   template <>
   memory_t<OpenCL>::memory_t();
 
@@ -213,10 +238,10 @@ namespace occa {
 
   template <>
   void memory_t<OpenCL>::free();
-  //==================================
+  //====================================
 
 
-  //---[ Device ]---------------------
+  //---[ Device ]-----------------------
   template <>
   device_t<OpenCL>::device_t();
 
@@ -331,11 +356,16 @@ namespace occa {
 
   template <>
   int device_t<OpenCL>::simdWidth();
-  //==================================
 
-  //---[ Error Handling ]-------------
+  //---[ Friend Methods ]-----
+  template <>
+  occa::device wrapDevice<OpenCL>(void **info);
+  //==========================
+  //====================================
+
+  //---[ Error Handling ]---------------
   std::string openclError(int e);
-  //==================================
+  //====================================
 }
 
 #  endif

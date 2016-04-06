@@ -1,28 +1,13 @@
 #ifndef OCCA_SERIAL_HEADER
 #define OCCA_SERIAL_HEADER
 
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-#  if   (OCCA_OS == LINUX_OS)
-#    include <sys/sysinfo.h>
-#  elif (OCCA_OS == OSX_OS)
-#    include <mach/mach.h>
-#    include <mach/mach_host.h>
-#  endif
-#  if (OCCA_OS != WINUX_OS)
-#    include <sys/sysctl.h>
-#  endif
-#  include <sys/wait.h>
-#  include <dlfcn.h>
-#else
-#  include <windows.h>
-#endif
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <fcntl.h>
 
 #include "occa/base.hpp"
+#include "occa/sys.hpp"
 #include "occa/library.hpp"
 
 namespace occa {
@@ -41,67 +26,6 @@ namespace occa {
 
 
   //---[ Helper Functions ]-----------
-  namespace cpu {
-    namespace vendor {
-      static const int notFound     = 0;
-
-      static const int b_GNU          = 0;
-      static const int b_LLVM         = 1;
-      static const int b_Intel        = 2;
-      static const int b_Pathscale    = 3;
-      static const int b_IBM          = 4;
-      static const int b_PGI          = 5;
-      static const int b_HP           = 6;
-      static const int b_VisualStudio = 7;
-      static const int b_Cray         = 8;
-      static const int b_max          = 9;
-
-      static const int GNU          = (1 << b_GNU);          // gcc    , g++
-      static const int LLVM         = (1 << b_LLVM);         // clang  , clang++
-      static const int Intel        = (1 << b_Intel);        // icc    , icpc
-      static const int Pathscale    = (1 << b_Pathscale);    // pathCC
-      static const int IBM          = (1 << b_IBM);          // xlc    , xlc++
-      static const int PGI          = (1 << b_PGI);          // pgcc   , pgc++
-      static const int HP           = (1 << b_HP);           // aCC
-      static const int VisualStudio = (1 << b_VisualStudio); // cl.exe
-      static const int Cray         = (1 << b_Cray);         // cc     , CC
-    }
-
-    std::string getFieldFrom(const std::string &command,
-                             const std::string &field);
-
-    std::string getProcessorName();
-    int getCoreCount();
-    int getProcessorFrequency();
-    std::string getProcessorCacheSize(int level);
-    uintptr_t installedRAM();
-    uintptr_t availableRAM();
-
-    std::string getDeviceListInfo();
-
-    int compilerVendor(const std::string &compiler);
-
-    std::string compilerSharedBinaryFlags(const std::string &compiler);
-    std::string compilerSharedBinaryFlags(const int vendor_);
-
-    void addSharedBinaryFlagsTo(const std::string &compiler, std::string &flags);
-    void addSharedBinaryFlagsTo(const int vendor_, std::string &flags);
-
-    void* malloc(uintptr_t bytes);
-    void free(void *ptr);
-
-    void* dlopen(const std::string &filename,
-                 const std::string &hash = "");
-
-    handleFunction_t dlsym(void *dlHandle,
-                           const std::string &functionName,
-                           const std::string &hash = "");
-
-    void runFunction(handleFunction_t f,
-                     const int *occaKernelInfoArgs,
-                     int occaInnerId0, int occaInnerId1, int occaInnerId2,
-                     int argc, void **args);
-  }
   //==================================
 
 

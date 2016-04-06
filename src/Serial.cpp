@@ -1,509 +1,6 @@
 #include "occa/Serial.hpp"
 
 namespace occa {
-  //---[ Helper Functions ]-----------
-  namespace cpu {
-    std::string getFieldFrom(const std::string &command,
-                             const std::string &field){
-#if (OCCA_OS & LINUX)
-      std::string shellToolsFile = sys::getFilename("[occa]/scripts/shellTools.sh");
-
-      if(!sys::fileExists(shellToolsFile)){
-        sys::mkpath(getFileDirectory(shellToolsFile));
-
-        std::ofstream fs2;
-        fs2.open(shellToolsFile.c_str());
-
-        fs2 << getCachedScript("shellTools.sh");
-
-        fs2.close();
-      }
-
-      std::stringstream ss;
-
-      ss << "echo \"(. " << shellToolsFile << "; " << command << " '" << field << "')\" | bash";
-
-      std::string sCommand = ss.str();
-
-      FILE *fp;
-      fp = popen(sCommand.c_str(), "r");
-
-      const int bufferSize = 4096;
-      char *buffer = new char[bufferSize];
-
-      ignoreResult( fread(buffer, sizeof(char), bufferSize, fp) );
-
-      pclose(fp);
-
-      int end;
-
-      for(end = 0; end < bufferSize; ++end){
-        if(buffer[end] == '\n')
-          break;
-      }
-
-      std::string ret(buffer, end);
-
-      delete [] buffer;
-
-      return ret;
-#else
-      return "";
-#endif
-    }
-
-    std::string getProcessorName(){
-#if   (OCCA_OS & LINUX_OS)
-      return getFieldFrom("getCPUINFOField", "model name");
-#elif (OCCA_OS == OSX_OS)
-      size_t bufferSize = 100;
-      char buffer[100];
-
-      sysctlbyname("machdep.cpu.brand_string",
-                   &buffer, &bufferSize,
-                   NULL, 0);
-
-      return std::string(buffer);
-#elif (OCCA_OS == WINDOWS_OS)
-      char buffer[MAX_COMPUTERNAME_LENGTH + 1];
-      int bytes;
-
-      GetComputerName((LPSTR) buffer, (LPDWORD) &bytes);
-
-      return std::string(buffer, bytes);
-#endif
-    }
-
-    int getCoreCount(){
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-      return sysconf(_SC_NPROCESSORS_ONLN);
-#elif (OCCA_OS == WINDOWS_OS)
-      SYSTEM_INFO sysinfo;
-      GetSystemInfo(&sysinfo);
-      return sysinfo.dwNumberOfProcessors;
-#endif
-    }
-
-    int getProcessorFrequency(){
-#if   (OCCA_OS & LINUX_OS)
-      std::stringstream ss;
-      int freq;
-
-      ss << getFieldFrom("getCPUINFOField", "cpu MHz");
-
-      ss >> freq;
-
-      return freq;
-#elif (OCCA_OS == OSX_OS)
-      uint64_t frequency = 0;
-      size_t size = sizeof(frequency);
-
-      int error = sysctlbyname("hw.cpufrequency", &frequency, &size, NULL, 0);
-
-      OCCA_CHECK(error != ENOMEM,
-                 "Error getting CPU Frequency.\n");
-
-      return frequency/1.0e6;
-#elif (OCCA_OS == WINDOWS_OS)
-      LARGE_INTEGER performanceFrequency;
-      QueryPerformanceFrequency(&performanceFrequency);
-
-      return (int) (((double) performanceFrequency.QuadPart) / 1000.0);
-#endif
-    }
-
-    std::string getProcessorCacheSize(int level){
-#if   (OCCA_OS & LINUX_OS)
-      std::stringstream field;
-
-      field << 'L' << level;
-
-      if(level == 1)
-        field << 'd';
-
-      field << " cache";
-
-      return getFieldFrom("getLSCPUField", field.str());
-#elif (OCCA_OS == OSX_OS)
-      std::stringstream ss;
-      ss << "hw.l" << level;
-
-      if(level == 1)
-        ss << 'd';
-
-      ss << "cachesize";
-
-      std::string field = ss.str();
-
-      uint64_t cache = 0;
-      size_t size = sizeof(cache);
-
-      int error = sysctlbyname(field.c_str(), &cache, &size, NULL, 0);
-
-      OCCA_CHECK(error != ENOMEM,
-                 "Error getting L" << level << " Cache Size.\n");
-
-      return stringifyBytes(cache);
-#elif (OCCA_OS == WINDOWS_OS)
-      std::stringstream ss;
-      DWORD cache = 0;
-      int bytes = 0;
-
-      PSYSTEM_LOGICAL_PROCESSOR_INFORMATION buffer = NULL;
-
-      GetLogicalProcessorInformation(buffer, (LPDWORD) &bytes);
-
-      OCCA_CHECK((GetLastError() == ERROR_INSUFFICIENT_BUFFER),
-                 "[GetLogicalProcessorInformation] Failed");
-
-      buffer = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION) cpu::malloc(bytes);
-
-      bool passed = GetLogicalProcessorInformation(buffer, (LPDWORD) &bytes);
-
-      OCCA_CHECK(passed,
-                 "[GetLogicalProcessorInformation] Failed");
-
-      PSYSTEM_LOGICAL_PROCESSOR_INFORMATION pos = buffer;
-      int off = 0;
-      int sk = sizeof(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION);
-
-      while ((off + sk) <= bytes) {
-        switch(pos->Relationship){
-        case RelationCache:{
-          CACHE_DESCRIPTOR info = pos->Cache;
-
-          if (info.Level == level) {
-            cache = info.Size;
-            break;
-          }
-        }
-        }
-        ++pos;
-        off += sk;
-      }
-
-      cpu::free(buffer);
-
-      return stringifyBytes(cache);
-#endif
-    }
-
-    uintptr_t installedRAM(){
-#if   (OCCA_OS & LINUX_OS)
-      struct sysinfo info;
-
-      const int error = sysinfo(&info);
-
-      if(error != 0)
-        return 0;
-
-      return info.totalram;
-#elif (OCCA_OS == OSX_OS)
-      int64_t ram;
-
-      int mib[2]   = {CTL_HW, HW_MEMSIZE};
-      size_t bytes = sizeof(ram);
-
-      sysctl(mib, 2, &ram, &bytes, NULL, 0);
-
-      return ram;
-#elif (OCCA_OS == WINDOWS_OS)
-      return 0;
-#endif
-    }
-
-    uintptr_t availableRAM(){
-#if   (OCCA_OS & LINUX_OS)
-      struct sysinfo info;
-
-      const int error = sysinfo(&info);
-
-      if(error != 0)
-        return 0;
-
-      return info.freeram;
-#elif (OCCA_OS == OSX_OS)
-      mach_msg_type_number_t infoCount = HOST_VM_INFO_COUNT;
-      mach_port_t hostPort = mach_host_self();
-
-      vm_statistics_data_t hostInfo;
-      kern_return_t status;
-      vm_size_t pageSize;
-
-      status = host_page_size(hostPort, &pageSize);
-
-      if(status != KERN_SUCCESS)
-        return 0;
-
-      status = host_statistics(hostPort,
-                               HOST_VM_INFO,
-                               (host_info_t) &hostInfo,
-                               &infoCount);
-
-      if(status != KERN_SUCCESS)
-        return 0;
-
-      return (hostInfo.free_count * pageSize);
-#elif (OCCA_OS == WINDOWS_OS)
-      return 0;
-#endif
-    }
-
-    std::string getDeviceListInfo(){
-      std::stringstream ss, ssFreq;
-
-      ss << getCoreCount();
-
-      uintptr_t ram      = installedRAM();
-      std::string ramStr = stringifyBytes(ram);
-
-      const int freq = getProcessorFrequency();
-
-      if(freq < 1000)
-        ssFreq << freq << " MHz";
-      else
-        ssFreq << (freq/1000.0) << " GHz";
-
-      std::string l1 = getProcessorCacheSize(1);
-      std::string l2 = getProcessorCacheSize(2);
-      std::string l3 = getProcessorCacheSize(3);
-
-      size_t maxSize = ((l1.size() < l2.size()) ? l2.size() : l1.size());
-      maxSize        = ((maxSize   < l3.size()) ? l3.size() : maxSize  );
-
-      if(maxSize){
-        l1 = std::string(maxSize - l1.size(), ' ') + l1;
-        l2 = std::string(maxSize - l2.size(), ' ') + l2;
-        l3 = std::string(maxSize - l3.size(), ' ') + l3;
-      }
-
-      std::string tab[2];
-      tab[0] = "   CPU Info   ";
-      tab[1] = "              ";
-
-      std::string processorName  = getProcessorName();
-      std::string clockFrequency = ssFreq.str();
-      std::string coreCount      = ss.str();
-
-      ss.str("");
-
-      // [P]rinted [S]omething
-      bool ps = false;
-
-      // << "==============o=======================o==========================================\n";
-      if(processorName.size())
-        ss << tab[ps]  << "|  Processor Name       | " << processorName                   << '\n'; ps = true;
-      if(coreCount.size())
-        ss << tab[ps]  << "|  Cores                | " << coreCount                       << '\n'; ps = true;
-      if(ramStr.size())
-        ss << tab[ps]  << "|  Memory (RAM)         | " << ramStr                          << '\n'; ps = true;
-      if(clockFrequency.size())
-        ss << tab[ps]  << "|  Clock Frequency      | " << clockFrequency                  << '\n'; ps = true;
-      ss   << tab[ps]  << "|  SIMD Instruction Set | " << OCCA_VECTOR_SET                 << '\n'
-           << tab[ps]  << "|  SIMD Width           | " << (32*OCCA_SIMD_WIDTH) << " bits" << '\n'; ps = true;
-      if(l1.size())
-        ss << tab[ps]  << "|  L1 Cache Size (d)    | " << l1                              << '\n'; ps = true;
-      if(l2.size())
-        ss << tab[ps]  << "|  L2 Cache Size        | " << l2                              << '\n'; ps = true;
-      if(l3.size())
-        ss << tab[ps]  << "|  L3 Cache Size        | " << l3                              << '\n';
-      // << "==============o=======================o==========================================\n";
-
-      return ss.str();
-    }
-
-    int compilerVendor(const std::string &compiler){
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-      std::stringstream ss;
-      int vendor_ = cpu::vendor::notFound;
-
-      const std::string safeCompiler = removeSlashes(compiler);
-      const std::string &hash = safeCompiler;
-
-      const std::string testFilename   = sys::getFilename("[occa]/testing/compilerVendorTest.cpp");
-      const std::string binaryFilename = sys::getFilename("[occa]/testing/compilerVendor_" + safeCompiler);
-      const std::string infoFilename   = sys::getFilename("[occa]/testing/compilerVendorInfo_" + safeCompiler);
-
-      cacheFile(testFilename,
-                readFile(env::OCCA_DIR + "/scripts/compilerVendorTest.cpp"),
-                "compilerVendorTest");
-
-      if(!haveHash(hash)){
-        waitForHash(hash);
-      } else {
-        if(!sys::fileExists(infoFilename)){
-          ss << compiler
-             << ' '
-             << testFilename
-             << " -o "
-             << binaryFilename
-             << " > /dev/null 2>&1";
-
-          const int compileError = system(ss.str().c_str());
-
-          if(!compileError){
-            int exitStatus = system(binaryFilename.c_str());
-            int vendorBit  = WEXITSTATUS(exitStatus);
-
-            if(vendorBit < cpu::vendor::b_max)
-              vendor_ = (1 << vendorBit);
-          }
-
-          ss.str("");
-          ss << vendor_;
-
-          writeToFile(infoFilename, ss.str());
-          releaseHash(hash);
-
-          return vendor_;
-        }
-        releaseHash(hash);
-      }
-
-      ss << readFile(infoFilename);
-      ss >> vendor_;
-
-      return vendor_;
-
-#elif (OCCA_OS == WINDOWS_OS)
-#  if OCCA_USING_VS
-      return cpu::vendor::VisualStudio;
-#  endif
-
-      if(compiler.find("cl.exe") != std::string::npos){
-        return cpu::vendor::VisualStudio;
-      }
-#endif
-    }
-
-    std::string compilerSharedBinaryFlags(const std::string &compiler){
-      return compilerSharedBinaryFlags( cpu::compilerVendor(compiler) );
-    }
-
-    std::string compilerSharedBinaryFlags(const int vendor_){
-      if(vendor_ & (cpu::vendor::GNU   |
-                    cpu::vendor::LLVM  |
-                    cpu::vendor::Intel |
-                    cpu::vendor::IBM   |
-                    cpu::vendor::PGI   |
-                    cpu::vendor::Cray  |
-                    cpu::vendor::Pathscale)){
-
-        return "-x c++ -fPIC -shared"; // [-] -x c++ for now
-      }
-      else if(vendor_ & cpu::vendor::HP){
-        return "+z -b";
-      }
-      else if(vendor_ & cpu::vendor::VisualStudio){
-#if OCCA_DEBUG_ENABLED
-        return "/TP /LD /MDd";
-#else
-        return "/TP /LD /MD";
-#endif
-      }
-
-      return "";
-    }
-
-    void addSharedBinaryFlagsTo(const std::string &compiler, std::string &flags){
-      addSharedBinaryFlagsTo(cpu::compilerVendor(compiler), flags);
-    }
-
-    void addSharedBinaryFlagsTo(const int vendor_, std::string &flags){
-      std::string sFlags = cpu::compilerSharedBinaryFlags(vendor_);
-
-      if(flags.size() == 0)
-        flags = sFlags;
-
-      if(flags.find(sFlags) == std::string::npos)
-        flags = (sFlags + " " + flags);
-    }
-
-    void* malloc(uintptr_t bytes){
-      void* ptr;
-
-#if   (OCCA_OS & (LINUX_OS | OSX_OS))
-      ignoreResult( posix_memalign(&ptr, env::OCCA_MEM_BYTE_ALIGN, bytes) );
-#elif (OCCA_OS == WINDOWS_OS)
-      ptr = ::malloc(bytes);
-#endif
-
-      return ptr;
-    }
-
-    void free(void *ptr){
-      ::free(ptr);
-    }
-
-    void* dlopen(const std::string &filename,
-                 const std::string &hash){
-
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-      void *dlHandle = ::dlopen(filename.c_str(), RTLD_NOW);
-
-      if((dlHandle == NULL) && (0 < hash.size())){
-        releaseHash(hash, 0);
-
-        OCCA_CHECK(false,
-                   "Error loading binary [" << compressFilename(filename) << "] with dlopen");
-      }
-#else
-      void *dlHandle = LoadLibraryA(filename.c_str());
-
-      if((dlHandle == NULL) && (0 < hash.size())){
-        releaseHash(hash, 0);
-
-        OCCA_CHECK(dlHandle != NULL,
-                   "Error loading dll [" << compressFilename(filename) << "] (WIN32 error: " << GetLastError() << ")");
-      }
-#endif
-
-      return dlHandle;
-    }
-
-    handleFunction_t dlsym(void *dlHandle,
-                           const std::string &functionName,
-                           const std::string &hash){
-
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-      void *sym = ::dlsym(dlHandle, functionName.c_str());
-
-      char *dlError;
-
-      if(((dlError = dlerror()) != NULL) && (0 < hash.size())){
-        releaseHash(hash, 0);
-
-        OCCA_CHECK(false,
-                   "Error loading symbol from binary with dlsym (DL Error: " << dlError << ")");
-      }
-#else
-      void *sym = GetProcAddress((HMODULE) dlHandle, functionName.c_str());
-
-      if((sym == NULL) && (0 < hash.size())){
-
-        OCCA_CHECK(false,
-                   "Error loading symbol from binary with GetProcAddress");
-      }
-#endif
-
-      handleFunction_t sym2;
-
-      ::memcpy(&sym2, &sym, sizeof(sym));
-
-      return sym2;
-    }
-
-    void runFunction(handleFunction_t f,
-                     const int *occaKernelInfoArgs,
-                     int occaInnerId0, int occaInnerId1, int occaInnerId2,
-                     int argc, void **args){
-
-#include "operators/runFunctionFromArguments.cpp"
-    }
-  }
-  //==================================
-
-
   //---[ Kernel ]---------------------
   template <>
   kernel_t<Serial>::kernel_t(){
@@ -651,7 +148,7 @@ namespace occa {
             << " /I"  << clInc
 #  endif
             << ' '    << sourceFile
-            << " /link " << occaLib 
+            << " /link " << occaLib
 #  if OCCA_CUDA_ENABLED
             << " /link"  << cuLib
 #  endif
@@ -680,8 +177,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Serial, Kernel);
 
-    data_.dlHandle = cpu::dlopen(binaryFile, hash);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName, hash);
+    data_.dlHandle = sys::dlopen(binaryFile, hash);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName, hash);
 
     releaseHash(hash, 0);
 
@@ -698,8 +195,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Serial, Kernel);
 
-    data_.dlHandle = cpu::dlopen(filename);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName);
+    data_.dlHandle = sys::dlopen(filename);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName);
 
     return this;
   }
@@ -743,7 +240,7 @@ namespace occa {
 
     int occaInnerId0 = 0, occaInnerId1 = 0, occaInnerId2 = 0;
 
-    cpu::runFunction(tmpKernel,
+    sys::runFunction(tmpKernel,
                      occaKernelArgs,
                      occaInnerId0, occaInnerId1, occaInnerId2,
                      argc, data_.vArgs);
@@ -752,12 +249,7 @@ namespace occa {
   template <>
   void kernel_t<Serial>::free(){
     OCCA_EXTRACT_DATA(Serial, Kernel);
-
-#if (OCCA_OS & (LINUX_OS | OSX_OS))
-    dlclose(data_.dlHandle);
-#else
-    FreeLibrary((HMODULE) (data_.dlHandle));
-#endif
+    sys::dlclose(data_.dlHandle);
   }
   //==================================
 
@@ -982,7 +474,7 @@ namespace occa {
 
   template <>
   void memory_t<Serial>::mappedFree(){
-    cpu::free(handle);
+    sys::free(handle);
     handle    = NULL;
     mappedPtr = NULL;
 
@@ -992,11 +484,11 @@ namespace occa {
   template <>
   void memory_t<Serial>::free(){
     if(isATexture()){
-      cpu::free(textureInfo.arg);
+      sys::free(textureInfo.arg);
       textureInfo.arg = NULL;
     }
     else{
-      cpu::free(handle);
+      sys::free(handle);
       handle = NULL;
     }
 
@@ -1016,7 +508,7 @@ namespace occa {
 
     getEnvironmentVariables();
 
-    cpu::addSharedBinaryFlagsTo(compiler, compilerFlags);
+    sys::addSharedBinaryFlagsTo(compiler, compilerFlags);
   }
 
   template <>
@@ -1056,9 +548,9 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Serial, Device);
 
-    data_.vendor = cpu::compilerVendor(compiler);
+    data_.vendor = sys::compilerVendor(compiler);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -1192,9 +684,9 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Serial, Device);
 
-    data_.vendor = cpu::compilerVendor(compiler);
+    data_.vendor = sys::compilerVendor(compiler);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -1208,7 +700,7 @@ namespace occa {
 
     compilerFlags = compilerFlags_;
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -1385,7 +877,7 @@ namespace occa {
     mem->dHandle = this;
     mem->size    = bytes;
 
-    mem->handle = cpu::malloc(bytes);
+    mem->handle = sys::malloc(bytes);
 
     if(src != NULL)
       ::memcpy(mem->handle, src, bytes);
@@ -1410,7 +902,7 @@ namespace occa {
     mem->textureInfo.h = dims.y;
     mem->textureInfo.d = dims.z;
 
-    mem->handle = cpu::malloc(mem->size);
+    mem->handle = sys::malloc(mem->size);
 
     ::memcpy(mem->textureInfo.arg, src, mem->size);
 
@@ -1431,7 +923,7 @@ namespace occa {
 
   template <>
   uintptr_t device_t<Serial>::memorySize(){
-    return cpu::installedRAM();
+    return sys::installedRAM();
   }
 
   template <>

@@ -1,26 +1,6 @@
 #ifndef OCCA_BASE_HEADER
 #define OCCA_BASE_HEADER
 
-// #include <algorithm>
-// #include <iomanip>
-// #include <sstream>
-// #include <fstream>
-
-// #include <string.h>
-// #include <stdio.h>
-// #include <fcntl.h>
-
-// #include <sys/stat.h>
-// #include <sys/types.h>
-
-// #if (OCCA_OS & (LINUX_OS | OSX_OS))
-// #  include <unistd.h>
-// #else
-// #  include <io.h>
-// #endif
-
-// #include "occa/tools.hpp"
-
 #include <iostream>
 #include <vector>
 #include <map>
@@ -35,21 +15,6 @@
 
 #include "occa/uva.hpp"
 #include "occa/parser/tools.hpp"
-
-#if (OCCA_OPENCL_ENABLED)
-#  if   (OCCA_OS & LINUX_OS)
-#    include <CL/cl.h>
-#    include <CL/cl_gl.h>
-#  elif (OCCA_OS & OSX_OS)
-#    include <OpenCL/OpenCl.h>
-#  else
-#    include "CL/opencl.h"
-#  endif
-#endif
-
-#if (OCCA_CUDA_ENABLED)
-#  include <cuda.h>
-#endif
 
 namespace occa {
   typedef int mode;
@@ -90,10 +55,6 @@ namespace occa {
 
   void setVerboseCompilation(const bool value);
 
-  namespace flags {
-    extern const int checkCacheDir;
-  }
-
   bool hasSerialEnabled();
   bool hasPthreadsEnabled();
   bool hasOpenMPEnabled();
@@ -106,54 +67,24 @@ namespace occa {
   //---[ Typedefs ]-------------------------------
   typedef void* stream_t;
 
-  static const int CPU     = (1 << 0);
-  static const int GPU     = (1 << 1);
-  static const int FPGA    = (1 << 3);
-  static const int XeonPhi = (1 << 2);
-  static const int anyType = (CPU | GPU | FPGA | XeonPhi);
-
-  static const int Intel     = (1 << 4);
-  static const int AMD       = (1 << 5);
-  static const int Altera    = (1 << 6);
-  static const int NVIDIA    = (1 << 7);
-  static const int anyVendor = (Intel | AMD | Altera | NVIDIA);
-
-  static const int any = (anyType | anyVendor);
-
-  std::string deviceType(int type);
-  std::string vendor(int type);
-
   static const bool useParser = true;
 
   static const int usingOKL    = (1 << 0);
   static const int usingOFL    = (1 << 1);
   static const int usingNative = (1 << 2);
-
-  typedef void (*handleFunction_t)(const int *occaKernelInfoArgs,
-                                   int occaInnerId0,
-                                   int occaInnerId1,
-                                   int occaInnerId2, ...);
   //==============================================
 
   //---[ Mode ]-----------------------------------
   static const occa::mode NoMode   = 0;
-  static const occa::mode Serial   = (1 << 20);
-  static const occa::mode OpenMP   = (1 << 21);
-  static const occa::mode OpenCL   = (1 << 22);
-  static const occa::mode CUDA     = (1 << 23);
-  static const occa::mode HSA      = (1 << 24);
-  static const occa::mode Pthreads = (1 << 25);
+  static const occa::mode Serial   = 1;
+  static const occa::mode OpenMP   = 2;
+  static const occa::mode OpenCL   = 3;
+  static const occa::mode CUDA     = 4;
+  static const occa::mode HSA      = 5;
+  static const occa::mode Pthreads = 6;
 
   static const int onChipMode  = (Serial | OpenMP | Pthreads);
   static const int offChipMode = (OpenCL | CUDA | HSA);
-
-  static const occa::mode SerialIndex   = 0;
-  static const occa::mode OpenMPIndex   = 1;
-  static const occa::mode OpenCLIndex   = 2;
-  static const occa::mode CUDAIndex     = 3;
-  static const occa::mode HSAIndex      = 4;
-  static const occa::mode PthreadsIndex = 5;
-  static const int modeCount = 6;
 
   std::string modeToStr(const occa::mode &m);
   mode strToMode(const std::string &str);
@@ -186,7 +117,8 @@ namespace occa {
     friend std::ostream& operator << (std::ostream &out, const argInfoMap &m);
   };
 
-  template <> void argInfoMap::set(const std::string &info, const std::string &value);
+  template <>
+  void argInfoMap::set(const std::string &info, const std::string &value);
 
   class dim {
   public:
@@ -305,27 +237,9 @@ namespace occa {
   class streamTag {
   public:
     double tagTime;
+    // OpenCL : handle = cl_event*
+    // CUDA   : handle = CUevent*
     void *handle;
-
-#if OCCA_OPENCL_ENABLED
-    inline cl_event& clEvent() {
-      return (cl_event&) handle;
-    }
-
-    inline cl_event& clEvent() const {
-      return const_cast<cl_event&>( (const cl_event&) handle );
-    }
-#endif
-
-#if OCCA_CUDA_ENABLED
-    inline CUevent& cuEvent() {
-      return (CUevent&) handle;
-    }
-
-    inline CUevent& cuEvent() const {
-      return const_cast<CUevent&>( (const CUevent&) handle );
-    }
-#endif
   };
 
   struct textureInfo_t {
@@ -373,6 +287,9 @@ namespace occa {
   extern const occa::formatType int32Format , int32x2Format , int32x4Format;
   extern const occa::formatType halfFormat  , halfx2Format  , halfx4Format;
   extern const occa::formatType floatFormat , floatx2Format , floatx4Format;
+  //==============================================
+
+  //---[ Mode Registration ]----------------------
   //==============================================
 
   //---[ Kernel ]---------------------------------
@@ -906,34 +823,6 @@ namespace occa {
     }
   };
 
-  namespace cl {
-    occa::device wrapDevice(void *platformIDPtr,
-                            void *deviceIDPtr,
-                            void *contextPtr);
-
-#if OCCA_OPENCL_ENABLED
-    occa::device wrapDevice(cl_platform_id platformID,
-                            cl_device_id deviceID,
-                            cl_context context);
-#endif
-  }
-
-  namespace cuda {
-    occa::device wrapDevice(void *devicePtr,
-                            void *contextPtr);
-
-#if OCCA_CUDA_ENABLED
-    occa::device wrapDevice(CUdevice device,
-                            CUcontext context);
-#endif
-  }
-
-#if OCCA_HSA_ENABLED
-  namespace hsa {
-    occa::device wrapDevice();
-  }
-#endif
-
   class device_v {
     template <occa::mode> friend class occa::kernel_t;
     template <occa::mode> friend class occa::memory_t;
@@ -1017,20 +906,6 @@ namespace occa {
     virtual kernel_v* loadKernelFromLibrary(const char *cache,
                                             const std::string &functionName) = 0;
 
-#if OCCA_OPENCL_ENABLED
-    friend occa::device cl::wrapDevice(cl_platform_id platformID,
-                                       cl_device_id deviceID,
-                                       cl_context context);
-#endif
-
-#if OCCA_CUDA_ENABLED
-    friend occa::device cuda::wrapDevice(CUdevice device, CUcontext context);
-#endif
-
-#if OCCA_HSA_ENABLED
-    friend occa::device hsa::wrapDevice(CUdevice device, CUcontext context);
-#endif
-
     virtual memory_v* wrapMemory(void *handle_,
                                  const uintptr_t bytes) = 0;
 
@@ -1052,7 +927,15 @@ namespace occa {
 
     virtual uintptr_t memorySize() = 0;
     virtual int simdWidth() = 0;
+
+    //---[ Friend Methods ]---
+    template <occa::mode>
+    friend occa::device wrapDevice(void **info);
+    //========================
   };
+
+  template <occa::mode>
+  occa::device wrapDevice(void **info);
 
   template <occa::mode mode_>
   class device_t : public device_v {
@@ -1129,19 +1012,7 @@ namespace occa {
     kernel_v* loadKernelFromLibrary(const char *cache,
                                     const std::string &functionName);
 
-#if OCCA_OPENCL_ENABLED
-    friend occa::device cl::wrapDevice(cl_platform_id platformID,
-                                       cl_device_id deviceID,
-                                       cl_context context);
-#endif
-
-#if OCCA_CUDA_ENABLED
-    friend occa::device cuda::wrapDevice(CUdevice device, CUcontext context);
-#endif
-
-#if OCCA_HSA_ENABLED
-    friend occa::device hsa::wrapDevice(CUdevice device, CUcontext context);
-#endif
+    device_v* wrapDevice(void **info);
 
     memory_v* wrapMemory(void *handle_,
                          const uintptr_t bytes);
@@ -1318,20 +1189,6 @@ namespace occa {
                                  const std::string &functionName);
 
     kernel& operator [] (kernelDatabase &kdb);
-
-#if OCCA_OPENCL_ENABLED
-    friend occa::device cl::wrapDevice(cl_platform_id platformID,
-                                       cl_device_id deviceID,
-                                       cl_context context);
-#endif
-
-#if OCCA_CUDA_ENABLED
-    friend occa::device cuda::wrapDevice(CUdevice device, CUcontext context);
-#endif
-
-#if OCCA_HSA_ENABLED
-    friend occa::device hsa::wrapDevice(CUdevice device, CUcontext context);
-#endif
 
     memory wrapMemory(void *handle_,
                       const uintptr_t bytes);

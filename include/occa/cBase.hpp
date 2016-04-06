@@ -4,28 +4,6 @@
 #include "stdint.h"
 #include "stdlib.h"
 
-#if OCCA_OPENCL_ENABLED
-#  if   (OCCA_OS & LINUX_OS)
-#    include <CL/cl.h>
-#    include <CL/cl_gl.h>
-#  elif (OCCA_OS & OSX_OS)
-#    include <OpenCL/OpenCl.h>
-#  else
-#    include "CL/opencl.h"
-#  endif
-#endif
-
-#if OCCA_CUDA_ENABLED
-#  include <cuda.h>
-#endif
-
-#if OCCA_HSA_ENABLED
-#  if   (OCCA_OS & LINUX_OS)
-#  elif (OCCA_OS & OSX_OS)
-#  else
-#  endif
-#endif
-
 #include "occa/defines.hpp"
 
 #if (OCCA_OS & (LINUX_OS | OSX_OS))
@@ -352,20 +330,7 @@ OCCA_LFUNC int OCCA_RFUNC occaSysCall(const char *cmdline,
 
 
 //---[ Wrappers ]---------------------
-#if OCCA_OPENCL_ENABLED
-OCCA_LFUNC occaDevice OCCA_RFUNC occaWrapOpenCLDevice(cl_platform_id platformID,
-                                                      cl_device_id deviceID,
-                                                      cl_context context);
-#endif
-
-#if OCCA_CUDA_ENABLED
-OCCA_LFUNC occaDevice OCCA_RFUNC occaWrapCudaDevice(CUdevice device, CUcontext context);
-#endif
-
-#if OCCA_HSA_ENABLED
-OCCA_LFUNC occaDevice OCCA_RFUNC occaWrapHSADevice();
-#endif
-
+// [REFORMAT] wrapDevice
 OCCA_LFUNC occaMemory OCCA_RFUNC occaDeviceWrapMemory(occaDevice device,
                                                       void *handle_,
                                                       const uintptr_t bytes);

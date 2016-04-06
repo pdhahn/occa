@@ -1,4 +1,5 @@
-#include "occa.hpp"
+#include "occa/sys.hpp"
+#include "occa/base.hpp"
 
 namespace occa {
   ptrRangeMap_t uvaMap;
@@ -220,7 +221,7 @@ namespace occa {
       return;
 
     if(mem.uvaPtr == NULL)
-      mem.uvaPtr = cpu::malloc(mem.size);
+      mem.uvaPtr = sys::malloc(mem.size);
 
     memcpy(mem.uvaPtr, mem.handle, mem.size);
   }

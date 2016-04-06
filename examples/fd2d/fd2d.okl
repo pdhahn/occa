@@ -95,7 +95,7 @@ occaKernel void fd2d(tFloat *u1,
         }
       }
 
-      occaBarrier(occaLocalMemFence);
+      barrier(localMemFence);
 
       for(int ly = 0; ly < By; ++ly; inner1){
         for(int lx = 0; lx < Bx; ++lx; inner0){

@@ -1,11 +1,5 @@
 package occa;
 
-import occa.Kernel;
-import occa.KernelInfo;
-import occa.Stream;
-import occa.StreamTag;
-import occa.Memory;
-
 public class Device {
   private long handle;
 

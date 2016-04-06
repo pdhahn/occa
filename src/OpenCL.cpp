@@ -5,13 +5,33 @@
 namespace occa {
   //---[ Helper Functions ]-----------
   namespace cl {
+    namespace info {
+      std::string deviceType(int type) {
+        if(type & CPU)     return "CPU";
+        if(type & GPU)     return "GPU";
+        if(type & FPGA)    return "FPGA";
+        if(type & XeonPhi) return "Xeon Phi";
+
+        return "N/A";
+      }
+
+      std::string vendor(int type) {
+        if(type & Intel)  return "Intel";
+        if(type & AMD)    return "AMD";
+        if(type & NVIDIA) return "NVIDIA";
+        if(type & Altera) return "Altera";
+
+        return "N/A";
+      }
+    }
+
     cl_device_type deviceType(int type){
       cl_device_type ret = 0;
 
-      if(type & occa::CPU)     ret |= CL_DEVICE_TYPE_CPU;
-      if(type & occa::GPU)     ret |= CL_DEVICE_TYPE_GPU;
-      if(type & occa::FPGA)    ret |= CL_DEVICE_TYPE_ACCELERATOR;
-      if(type & occa::XeonPhi) ret |= CL_DEVICE_TYPE_ACCELERATOR;
+      if(type & cl::info::CPU)     ret |= CL_DEVICE_TYPE_CPU;
+      if(type & cl::info::GPU)     ret |= CL_DEVICE_TYPE_GPU;
+      if(type & cl::info::FPGA)    ret |= CL_DEVICE_TYPE_ACCELERATOR;
+      if(type & cl::info::XeonPhi) ret |= CL_DEVICE_TYPE_ACCELERATOR;
 
       return ret;
     }
@@ -149,9 +169,9 @@ namespace occa {
                                     sizeof(clDeviceType), &clDeviceType, NULL));
 
       if(clDeviceType & CL_DEVICE_TYPE_CPU)
-        ret |= occa::CPU;
+        ret |= cl::info::CPU;
       else if(clDeviceType & CL_DEVICE_TYPE_GPU)
-        ret |= occa::GPU;
+        ret |= cl::info::GPU;
 
       return ret;
     }
@@ -166,18 +186,18 @@ namespace occa {
          vendor.find("Advanced Micro Devices") != std::string::npos ||
          vendor.find("ATI")                    != std::string::npos){
 
-        ret |= occa::AMD;
+        ret |= cl::info::AMD;
       }
       else if(vendor.find("Intel") != std::string::npos){
-        ret |= occa::Intel;
+        ret |= cl::info::Intel;
       }
       else if(vendor.find("Altera") != std::string::npos){
-        ret |= occa::Altera;
+        ret |= cl::info::Altera;
       }
       else if(vendor.find("Nvidia") != std::string::npos ||
               vendor.find("NVIDIA") != std::string::npos){
 
-        ret |= occa::NVIDIA;
+        ret |= cl::info::NVIDIA;
       }
 
       return ret;
@@ -226,16 +246,16 @@ namespace occa {
 
           if(pID || dID){
             ss << "              |-----------------------+------------------------------------------\n"
-               << "              |  Device Name          | " << deviceName(pID, dID)            << '\n';
+               << "              |  Device Name          | " << deviceName(pID, dID) << '\n';
           }
           else{
-            ss << "    OpenCL    |  Device Name          | " << deviceName(pID, dID)            << '\n';
+            ss << "    OpenCL    |  Device Name          | " << deviceName(pID, dID) << '\n';
           }
 
-          ss << "              |  Driver Vendor        | " << occa::vendor(deviceVendor(pID,dID)) << '\n'
-             << "              |  Platform ID          | " << pID                                 << '\n'
-             << "              |  Device ID            | " << dID                                 << '\n'
-             << "              |  Memory               | " << bytesStr                            << '\n';
+          ss << "              |  Driver Vendor        | " << cl::info::vendor(deviceVendor(pID,dID)) << '\n'
+             << "              |  Platform ID          | " << pID      << '\n'
+             << "              |  Device ID            | " << dID      << '\n'
+             << "              |  Memory               | " << bytesStr << '\n';
         }
       }
 
@@ -403,32 +423,8 @@ namespace occa {
       delete [] binary;
     }
 
-    occa::device wrapDevice(cl_platform_id platformID,
-                            cl_device_id deviceID,
-                            cl_context context){
-      occa::device dev;
-      device_t<OpenCL> &dHandle   = *(new device_t<OpenCL>());
-      OpenCLDeviceData_t &devData = *(new OpenCLDeviceData_t);
-
-      dev.dHandle = &dHandle;
-
-      //---[ Setup ]----------
-      dHandle.data = &devData;
-
-      devData.platform = -1;
-      devData.device   = -1;
-
-      devData.platformID = platformID;
-      devData.deviceID   = deviceID;
-      devData.context    = context;
-      //======================
-
-      dHandle.modelID_ = library::deviceModelID(dHandle.getIdentifier());
-      dHandle.id_      = library::genDeviceID();
-
-      dHandle.currentStream = dHandle.createStream();
-
-      return dev;
+    cl_event& event(streamTag tag) {
+      return (cl_event&) tag.handle;
     }
 
     bool imageFormatIsSupported(cl_image_format &f,
@@ -1274,7 +1270,7 @@ namespace occa {
   template <>
   void device_t<OpenCL>::waitFor(streamTag tag){
     OCCA_CL_CHECK("Device: Waiting For Tag",
-                  clWaitForEvents(1, &(tag.clEvent())));
+                  clWaitForEvents(1, &cl::event(tag)));
   }
 
   template <>
@@ -1311,10 +1307,10 @@ namespace occa {
 
 #ifdef CL_VERSION_1_2
     OCCA_CL_CHECK("Device: Tagging Stream",
-                  clEnqueueMarkerWithWaitList(stream, 0, NULL, &(ret.clEvent())));
+                  clEnqueueMarkerWithWaitList(stream, 0, NULL, &cl::event(ret)));
 #else
     OCCA_CL_CHECK("Device: Tagging Stream",
-                  clEnqueueMarker(stream, &(ret.clEvent())));
+                  clEnqueueMarker(stream, &cl::event(ret)));
 #endif
 
     return ret;
@@ -1327,22 +1323,22 @@ namespace occa {
     finish();
 
     OCCA_CL_CHECK ("Device: Time Between Tags (Start)",
-                   clGetEventProfilingInfo(startTag.clEvent(),
+                   clGetEventProfilingInfo(cl::event(startTag),
                                            CL_PROFILING_COMMAND_END,
                                            sizeof(cl_ulong),
                                            &start, NULL) );
 
     OCCA_CL_CHECK ("Device: Time Between Tags (End)",
-                   clGetEventProfilingInfo(endTag.clEvent(),
+                   clGetEventProfilingInfo(cl::event(endTag),
                                            CL_PROFILING_COMMAND_START,
                                            sizeof(cl_ulong),
                                            &end, NULL) );
 
     OCCA_CL_CHECK("Device: Time Between Tags (Freeing start tag)",
-                  clReleaseEvent(startTag.clEvent()));
+                  clReleaseEvent(cl::event(startTag)));
 
     OCCA_CL_CHECK("Device: Time Between Tags (Freeing end tag)",
-                  clReleaseEvent(endTag.clEvent()));
+                  clReleaseEvent(cl::event(endTag)));
 
     return (double) (1.0e-9 * (double)(end - start));
   }
@@ -1854,6 +1850,39 @@ namespace occa {
       simdWidth_ = OCCA_SIMD_WIDTH;
 
     return simdWidth_;
+  }
+
+  /**
+   * info = { cl_platform_id*, cl_device_id*, cl_context* }
+   */
+  template <>
+  occa::device wrapDevice<OpenCL>(void **info) {
+    device_t<OpenCL> &dHandle   = *(new device_t<OpenCL>());
+    OpenCLDeviceData_t &devData = *(new OpenCLDeviceData_t);
+
+    //---[ Unwrap Args ]------
+    cl_platform_id &platformID = *((cl_platform_id*) info[0]);
+    cl_device_id &deviceID     = *((cl_device_id*) info[1]);
+    cl_context &context        = *((cl_context*) info[2]);
+    //========================
+
+    //---[ Setup ]------------
+    dHandle.data = &devData;
+
+    devData.platform = -1;
+    devData.device   = -1;
+
+    devData.platformID = platformID;
+    devData.deviceID   = deviceID;
+    devData.context    = context;
+    //========================
+
+    dHandle.modelID_ = library::deviceModelID(dHandle.getIdentifier());
+    dHandle.id_      = library::genDeviceID();
+
+    dHandle.currentStream = dHandle.createStream();
+
+    return occa::device(&dHandle);
   }
   //==================================
 

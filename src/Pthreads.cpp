@@ -79,7 +79,7 @@ namespace occa {
 
       int occaInnerId0 = 0, occaInnerId1 = 0, occaInnerId2 = 0;
 
-      cpu::runFunction(tmpKernel,
+      sys::runFunction(tmpKernel,
                        occaKernelArgs,
                        occaInnerId0, occaInnerId1, occaInnerId2,
                        pkInfo.argc, pkInfo.args);
@@ -241,8 +241,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Pthreads, Kernel);
 
-    data_.dlHandle = cpu::dlopen(binaryFile, hash);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName, hash);
+    data_.dlHandle = sys::dlopen(binaryFile, hash);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName, hash);
 
     PthreadsDeviceData_t &dData = *((PthreadsDeviceData_t*) ((device_t<Pthreads>*) dHandle)->data);
 
@@ -271,8 +271,8 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Pthreads, Kernel);
 
-    data_.dlHandle = cpu::dlopen(filename);
-    data_.handle   = cpu::dlsym(data_.dlHandle, functionName);
+    data_.dlHandle = sys::dlopen(filename);
+    data_.handle   = sys::dlsym(data_.dlHandle, functionName);
 
     PthreadsDeviceData_t &dData = *((PthreadsDeviceData_t*) ((device_t<Pthreads>*) dHandle)->data);
 
@@ -580,7 +580,7 @@ namespace occa {
 
   template <>
   void memory_t<Pthreads>::mappedFree(){
-    cpu::free(handle);
+    sys::free(handle);
     handle    = NULL;
     mappedPtr = NULL;
 
@@ -590,11 +590,11 @@ namespace occa {
   template <>
   void memory_t<Pthreads>::free(){
     if(isATexture()){
-      cpu::free(textureInfo.arg);
+      sys::free(textureInfo.arg);
       textureInfo.arg = NULL;
     }
     else{
-      cpu::free(handle);
+      sys::free(handle);
       handle = NULL;
     }
 
@@ -616,7 +616,7 @@ namespace occa {
 
     getEnvironmentVariables();
 
-    cpu::addSharedBinaryFlagsTo(compiler, compilerFlags);
+    sys::addSharedBinaryFlagsTo(compiler, compilerFlags);
   }
 
   template <>
@@ -656,13 +656,13 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Pthreads, Device);
 
-    data_.vendor = cpu::compilerVendor(compiler);
+    data_.vendor = sys::compilerVendor(compiler);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
 
     data_.pendingJobs = 0;
 
-    data_.coreCount = cpu::getCoreCount();
+    data_.coreCount = sys::getCoreCount();
 
     std::vector<int> pinnedCores;
 
@@ -879,7 +879,7 @@ namespace occa {
   void device_t<Pthreads>::appendAvailableDevices(std::vector<device> &dList){
     device d;
 
-    d.setup("Pthreads", cpu::getCoreCount(), occa::compact);
+    d.setup("Pthreads", sys::getCoreCount(), occa::compact);
 
     dList.push_back(d);
   }
@@ -890,9 +890,9 @@ namespace occa {
 
     OCCA_EXTRACT_DATA(Pthreads, Device);
 
-    data_.vendor = cpu::compilerVendor(compiler);
+    data_.vendor = sys::compilerVendor(compiler);
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -906,7 +906,7 @@ namespace occa {
 
     compilerFlags = compilerFlags_;
 
-    cpu::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
+    sys::addSharedBinaryFlagsTo(data_.vendor, compilerFlags);
   }
 
   template <>
@@ -1089,7 +1089,7 @@ namespace occa {
     mem->dHandle = this;
     mem->size    = bytes;
 
-    mem->handle = cpu::malloc(bytes);
+    mem->handle = sys::malloc(bytes);
 
     if(src != NULL)
       ::memcpy(mem->handle, src, bytes);
@@ -1114,7 +1114,7 @@ namespace occa {
     mem->textureInfo.h = dims.y;
     mem->textureInfo.d = dims.z;
 
-    mem->handle = cpu::malloc(mem->size);
+    mem->handle = sys::malloc(mem->size);
 
     ::memcpy(mem->handle, src, mem->size);
 
@@ -1136,7 +1136,7 @@ namespace occa {
 
   template <>
   uintptr_t device_t<Pthreads>::memorySize(){
-    return cpu::installedRAM();
+    return sys::installedRAM();
   }
 
   template <>

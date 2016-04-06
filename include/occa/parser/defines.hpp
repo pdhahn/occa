@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 
 #include "occa/defines.hpp"
+#include "occa/typedefs.hpp"
 
 namespace occa {
   namespace parserNS {
@@ -51,9 +52,6 @@ namespace occa {
   //---[ Info ]-----------------------------------
   typedef uint64_t info_t;
 
-  typedef std::vector<int>                                  intVector_t;
-  typedef std::vector<intVector_t>                          intVecVector_t;
-  typedef std::vector<std::string>                          stringVector_t;
   typedef parserNS::node<parserNS::statement*>              statementNode;
   typedef parserNS::node<parserNS::varInfo*>                varInfoNode;
 
@@ -111,14 +109,6 @@ namespace occa {
   typedef std::map<std::string,parserNS::kernelInfo*>       kernelInfoMap_t;
   typedef kernelInfoMap_t::iterator                         kernelInfoIterator;
   typedef kernelInfoMap_t::const_iterator                   cKernelInfoIterator;
-
-  typedef std::map<std::string, std::string>                strToStrMap_t;
-  typedef strToStrMap_t::iterator                           strToStrMapIterator;
-  typedef strToStrMap_t::const_iterator                     cStrToStrMapIterator;
-
-  typedef std::map<std::string, bool>                       strToBoolMap_t;
-  typedef strToBoolMap_t::iterator                          strToBoolMapIterator;
-  typedef strToBoolMap_t::const_iterator                    cStrToBoolMapIterator;
 
   typedef std::map<std::string,parserNS::attribute_t*>      attributeMap_t;
   typedef attributeMap_t::iterator                          attributeMapIterator;
