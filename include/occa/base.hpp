@@ -84,19 +84,46 @@ namespace occa {
     void remove(const std::string &info);
 
     template <class TM>
-    inline void set(const std::string &info, const TM &value) {
+    void set(const std::string &info, const TM &value) {
       iMap[info] = toString(value);
     }
 
-    std::string get(const std::string &info);
-    int iGet(const std::string &info);
-    void iGets(const std::string &info, std::vector<int> &entries);
+    template <class TM>
+    TM get(const std::string &prop) {
+      TM t;
+      if (has(prop)) {
+        std::stringstream ss;
+        ss << iMap[prop];
+        ss >> t;
+      }
+      return t;
+    }
+
+    template <class TM>
+     std::vector<TM> getVector(const std::string &prop) {
+      std::vector<TM> ret;
+      TM t;
+      if (has(prop)) {
+        std::stringstream ss(iMap[prop].c_str());
+        while(ss.peek() != '\0') {
+          if (isWhitespace(c)) {
+            ss.get(1);
+          }
+          else {
+            if (ss.peek() == ',')
+              ss.get(1);
+            if (ss.peek() == '\0') {
+              ss >> t;
+              ret.push_back(t);
+            }
+          }
+        }
+      }
+      return ret;
+    }
 
     friend std::ostream& operator << (std::ostream &out, const argInfoMap &m);
   };
-
-  template <>
-  void argInfoMap::set(const std::string &info, const std::string &value);
 
   class dim {
   public:
@@ -122,23 +149,18 @@ namespace occa {
     uintptr_t  operator [] (int i) const;
   };
 
+  // [REFACTOR]
   union kernelArgData_t {
-    int int_;
-    unsigned int uint_;
+    uint8_t  uint8;
+    uint16_t uint16;
+    uint32_t uint32;
+    uint64_t uint64;
 
-    char char_;
-    unsigned char uchar_;
+    int8_t  int8;
+    int16_t int16;
+    int32_t int32;
+    int64_t int64;
 
-    short short_;
-    unsigned short ushort_;
-
-    long long_;
-    // unsigned long == uintptr_t
-
-    float float_;
-    double double_;
-
-    uintptr_t uintptr_t_;
     void* void_;
   };
 
@@ -223,23 +245,15 @@ namespace occa {
 
   //---[ Kernel ]---------------------------------
   class kernel_v {
-    template <occa::mode> friend class occa::kernel_t;
-    template <occa::mode> friend class occa::device_t;
     friend class occa::kernel;
     friend class occa::device;
 
   private:
-    std::string strMode;
-
-    void* data;
     occa::device_v *dHandle;
 
     std::string name;
 
     parsedKernelInfo metaInfo;
-
-    uintptr_t maximumInnerDimSize_;
-    int preferredDimSize_;
 
     int dims;
     dim inner, outer;
@@ -248,9 +262,8 @@ namespace occa {
     std::vector<kernelArg> arguments;
 
   public:
-    virtual occa::mode mode() = 0;
-
-    virtual inline ~kernel_v() {}
+    virtual kernel_v();
+    virtual ~kernel_v();
 
     virtual void* getKernelHandle() = 0;
     virtual void* getProgramHandle() = 0;
@@ -261,55 +274,25 @@ namespace occa {
                                  const std::string &functionName,
                                  const kernelInfo &info_ = defaultKernelInfo) = 0;
 
+    virtual void buildFromBinary(const std::string &filename,
+                                 const std::string &functionName) = 0;
+
     kernel* nestedKernelsPtr();
     int nestedKernelCount();
 
     kernelArg* argumentsPtr();
     int argumentCount();
 
-    virtual uintptr_t maximumInnerDimSize() = 0;
-    virtual int preferredDimSize() = 0;
+    // [REFACTOR]
+    // virtual uintptr_t maximumInnerDimSize() = 0;
+    // virtual int preferredDimSize() = 0;
+    virtual int maxDims() = 0;
+    virtual dim maxOuterDims() = 0;
+    virtual dim maxInnerDims() = 0;
 
     virtual void runFromArguments(const int kArgc, const kernelArg *kArgs) = 0;
 
     virtual void free() = 0;
-  };
-
-  template <occa::mode mode_>
-  class kernel_t : public kernel_v {
-  public:
-    inline occa::mode mode() {
-      return mode_;
-    }
-
-    kernel_t();
-    kernel_t(const std::string &filename,
-             const std::string &functionName,
-             const kernelInfo &info_ = defaultKernelInfo);
-
-    kernel_t(const kernel_t<mode_> &k);
-    kernel_t<mode_>& operator = (const kernel_t<mode_> &k);
-
-    ~kernel_t();
-
-    void* getKernelHandle();
-    void* getProgramHandle();
-
-    std::string fixBinaryName(const std::string &filename);
-
-    void buildFromSource(const std::string &filename,
-                         const std::string &functionName,
-                         const kernelInfo &info_ = defaultKernelInfo);
-
-    void buildFromBinary(const std::string &filename,
-                         const std::string &functionName);
-
-    uintptr_t maximumInnerDimSize();
-    int preferredDimSize();
-
-    void runFromArguments(const int kArgc, const kernelArg *kArgs);
-
-    void free();
   };
 
   class kernel {
@@ -332,13 +315,13 @@ namespace occa {
 
     kernel_v* getKHandle();
 
-    const std::string& mode();
     const std::string& name();
 
     occa::device getDevice();
 
-    uintptr_t maximumInnerDimSize();
-    int preferredDimSize();
+    int maxDims();
+    dim maxOuterDims();
+    dim maxInnerDims();
 
     void setWorkingDims(int dims, dim inner, dim outer);
 
@@ -419,15 +402,11 @@ namespace occa {
   //====================================
 
   class memory_v {
-    template <occa::mode> friend class occa::memory_t;
-    template <occa::mode> friend class occa::device_t;
     friend class occa::memory;
     friend class occa::device;
     friend class occa::kernelArg;
 
   private:
-    std::string strMode;
-
     int memInfo;
 
     void *handle, *mappedPtr, *uvaPtr;
@@ -438,13 +417,15 @@ namespace occa {
     occa::textureInfo_t textureInfo;
 
   public:
-    virtual inline occa::mode mode() { return 0; }
-    virtual inline ~memory_v() {}
+    virtual memory_v();
+    virtual ~memory_v();
 
-    bool isATexture() const;
     bool isManaged() const;
     bool isMapped() const;
     bool isAWrapper() const;
+
+    // [REFACTOR]
+    // bool isATexture() const;
     bool inDevice() const;
     bool leftInDevice() const;
     bool isDirty() const;
@@ -454,41 +435,25 @@ namespace occa {
 
     virtual void copyFrom(const void *src,
                           const uintptr_t bytes = 0,
-                          const uintptr_t offset = 0) = 0;
+                          const uintptr_t offset = 0,
+                          const bool async = false) = 0;
 
     virtual void copyFrom(const memory_v *src,
                           const uintptr_t bytes = 0,
                           const uintptr_t destOffset = 0,
-                          const uintptr_t srcOffset = 0) = 0;
+                          const uintptr_t srcOffset = 0,
+                          const bool async = false) = 0;
 
     virtual void copyTo(void *dest,
                         const uintptr_t bytes = 0,
-                        const uintptr_t offset = 0) = 0;
+                        const uintptr_t offset = 0,
+                        const bool async = false) = 0;
 
     virtual void copyTo(memory_v *dest,
                         const uintptr_t bytes = 0,
                         const uintptr_t destOffset = 0,
-                        const uintptr_t srcOffset = 0) = 0;
-
-    virtual void asyncCopyFrom(const void *src,
-                               const uintptr_t bytes = 0,
-                               const uintptr_t offset = 0) = 0;
-
-    virtual void asyncCopyFrom(const memory_v *src,
-                               const uintptr_t bytes = 0,
-                               const uintptr_t destOffset = 0,
-                               const uintptr_t srcOffset = 0) = 0;
-
-    virtual void asyncCopyTo(void *dest,
-                             const uintptr_t bytes = 0,
-                             const uintptr_t offset = 0) = 0;
-
-    virtual void asyncCopyTo(memory_v *dest,
-                             const uintptr_t bytes = 0,
-                             const uintptr_t destOffset = 0,
-                             const uintptr_t srcOffset = 0) = 0;
-
-    virtual void mappedFree() = 0;
+                        const uintptr_t srcOffset = 0,
+                        const bool async = false) = 0;
 
     virtual void free() = 0;
 
@@ -521,70 +486,7 @@ namespace occa {
     friend void syncMemFromDevice(occa::memory_v *mem,
                                   const uintptr_t bytes,
                                   const uintptr_t offset);
-
-    friend void setupMagicFor(void *ptr);
   };
-
-  template <occa::mode mode_>
-  class memory_t : public memory_v {
-    friend class occa::device_t<mode_>;
-
-  public:
-    memory_t();
-
-    memory_t(const memory_t &m);
-    memory_t& operator = (const memory_t &m);
-
-    inline occa::mode mode() {
-      return mode_;
-    }
-
-    inline ~memory_t() {};
-
-    void* getMemoryHandle();
-    void* getTextureHandle();
-
-    void copyFrom(const void *src,
-                  const uintptr_t bytes = 0,
-                  const uintptr_t offset = 0);
-
-    void copyFrom(const memory_v *src,
-                  const uintptr_t bytes = 0,
-                  const uintptr_t destOffset = 0,
-                  const uintptr_t srcOffset = 0);
-
-    void copyTo(void *dest,
-                const uintptr_t bytes = 0,
-                const uintptr_t offset = 0);
-
-    void copyTo(memory_v *dest,
-                const uintptr_t bytes = 0,
-                const uintptr_t destOffset = 0,
-                const uintptr_t srcOffset = 0);
-
-    void asyncCopyFrom(const void *src,
-                       const uintptr_t bytes = 0,
-                       const uintptr_t offset = 0);
-
-    void asyncCopyFrom(const memory_v *src,
-                       const uintptr_t bytes = 0,
-                       const uintptr_t destOffset = 0,
-                       const uintptr_t srcOffset = 0);
-
-    void asyncCopyTo(void *dest,
-                     const uintptr_t bytes = 0,
-                     const uintptr_t offset = 0);
-
-    void asyncCopyTo(memory_v *dest,
-                     const uintptr_t bytes = 0,
-                     const uintptr_t destOffset = 0,
-                     const uintptr_t srcOffset = 0);
-
-    void mappedFree();
-
-    void free();
-  };
-
 
   class memory {
     friend class occa::device;
@@ -608,24 +510,23 @@ namespace occa {
     memory_v* getMHandle();
     device_v* getDHandle();
 
-    const std::string& mode();
-
     uintptr_t bytes() const;
 
-    bool isATexture() const;
     bool isManaged() const;
     bool isMapped() const;
     bool isAWrapper() const;
+
+    // bool isATexture() const;
     bool inDevice() const;
     bool leftInDevice() const;
     bool isDirty() const;
 
-    void* textureArg1() const;
-    void* textureArg2() const;
+    // void* textureArg1() const;
+    // void* textureArg2() const;
 
     void* getMappedPointer();
     void* getMemoryHandle();
-    void* getTextureHandle();
+    // void* getTextureHandle();
 
     void placeInUva();
     void manage();
@@ -680,38 +581,6 @@ namespace occa {
   //---[ Device ]---------------------------------
   void printAvailableDevices();
 
-  class deviceIdentifier {
-  public:
-    typedef std::map<std::string,std::string> flagMap_t;
-    typedef flagMap_t::iterator               flagMapIterator;
-    typedef flagMap_t::const_iterator         cFlagMapIterator;
-
-    occa::mode mode_;
-    flagMap_t flagMap;
-
-    deviceIdentifier();
-
-    deviceIdentifier(occa::mode m,
-                     const char *c, const size_t chars);
-
-    deviceIdentifier(occa::mode m, const std::string &s);
-
-    deviceIdentifier(const deviceIdentifier &di);
-    deviceIdentifier& operator = (const deviceIdentifier &di);
-
-    void load(const char *c, const size_t chars);
-    void load(const std::string &s);
-
-    std::string flattenFlagMap() const;
-
-    int compare(const deviceIdentifier &b) const;
-
-    inline friend bool operator < (const deviceIdentifier &a,
-                                   const deviceIdentifier &b) {
-      return (a.compare(b) < 0);
-    }
-  };
-
   class device_v {
     friend class occa::kernel;
     friend class occa::memory;
@@ -736,16 +605,8 @@ namespace occa {
     uintptr_t bytesAllocated;
 
   public:
-    virtual device_v();
-    virtual ~device_v();
-
-    inline int id() {
-      return id_;
-    }
-
-    inline int modelID() {
-      return modelID_;
-    }
+    virtual device_v() = 0;
+    virtual ~device_v() = 0;
 
     virtual void setup(argInfoMap &aim) = 0;
 
@@ -921,27 +782,29 @@ namespace occa {
       return TM();
     }
 
-    void setCompiler(const std::string &compiler_);
-    void setCompilerEnvScript(const std::string &compilerEnvScript_);
-    void setCompilerFlags(const std::string &compilerFlags_);
-
-    std::string& getCompiler();
-    std::string& getCompilerEnvScript();
-    std::string& getCompilerFlags();
+    template <class TM>
+    inline void setProperty(const std::string &info, const TM &value) {
+      dHandle->
+      iMap[info] = toString(value);
+    }
 
     void flush();
     void finish();
 
-    void waitFor(streamTag tag);
-
+    //  |---[ Stream ]------------------
     stream createStream();
+    void freeStream(stream s);
+
     stream getStream();
     void setStream(stream s);
     stream wrapStream(void *handle_);
 
     streamTag tagStream();
+    void waitFor(streamTag tag);
     double timeBetween(const streamTag &startTag, const streamTag &endTag);
+    //  |=============================
 
+    //  |---[ Kernel ]------------------
     kernel buildKernel(const std::string &str,
                        const std::string &functionName,
                        const kernelInfo &info_ = defaultKernelInfo);
@@ -961,6 +824,7 @@ namespace occa {
 
     kernel buildKernelFromBinary(const std::string &filename,
                                  const std::string &functionName);
+    //  |===============================
 
     memory wrapMemory(void *handle_,
                       const uintptr_t bytes);
@@ -996,11 +860,8 @@ namespace occa {
     void* managedMappedAlloc(const uintptr_t bytes,
                              void *src = NULL);
 
-    void freeStream(stream s);
 
     void free();
-
-    int simdWidth();
   };
 
   //   ---[ Device Functions ]----------
@@ -1016,13 +877,11 @@ namespace occa {
 
   std::vector<device>& getDeviceList();
 
-  // void setCompiler(const std::string &compiler_);
-  // void setCompilerEnvScript(const std::string &compilerEnvScript_);
-  // void setCompilerFlags(const std::string &compilerFlags_);
-
-  // std::string& getCompiler();
-  // std::string& getCompilerEnvScript();
-  // std::string& getCompilerFlags();
+  // [REFACTOR]
+  template <class TM>
+  inline void setDeviceProperty(const std::string &info, const TM &value) {
+    currentDevice.setProperty(info, value);
+  }
 
   void flush();
   void finish();

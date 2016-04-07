@@ -77,11 +77,6 @@ namespace occa {
       iMap.erase(it);
   }
 
-  template <>
-  void argInfoMap::set(const std::string &info, const std::string &value) {
-    iMap[info] = value;
-  }
-
   std::string argInfoMap::get(const std::string &info) {
     std::map<std::string,std::string>::iterator it = iMap.find(info);
 
@@ -89,15 +84,6 @@ namespace occa {
       return it->second;
 
     return "";
-  }
-
-  int argInfoMap::iGet(const std::string &info) {
-    std::map<std::string,std::string>::iterator it = iMap.find(info);
-
-    if(it != iMap.end())
-      return atoi((it->second).c_str());
-
-    return 0;
   }
 
   void argInfoMap::iGets(const std::string &info, std::vector<int> &entries) {
@@ -1503,11 +1489,6 @@ namespace occa {
     return dHandle->bytesAllocated;
   }
 
-  deviceIdentifier device::getIdentifier() const {
-    checkIfInitialized();
-    return dHandle->getIdentifier();
-  }
-
   void device::setCompiler(const std::string &compiler_) {
     checkIfInitialized();
     dHandle->setCompiler(compiler_);
@@ -2224,105 +2205,6 @@ namespace occa {
 //     ss << "==============o=======================o==========================================\n";
 
 //     std::cout << ss.str();
-  }
-
-  deviceIdentifier::deviceIdentifier() :
-    mode_(Serial) {}
-
-  deviceIdentifier::deviceIdentifier(occa::mode m,
-                                     const char *c, const size_t chars) {
-    mode_ = m;
-    load(c, chars);
-  }
-
-  deviceIdentifier::deviceIdentifier(occa::mode m, const std::string &s) {
-    mode_ = m;
-    load(s);
-  }
-
-  deviceIdentifier::deviceIdentifier(const deviceIdentifier &di) :
-    mode_(di.mode_),
-    flagMap(di.flagMap) {}
-
-  deviceIdentifier& deviceIdentifier::operator = (const deviceIdentifier &di) {
-    mode_ = di.mode_;
-    flagMap = di.flagMap;
-
-    return *this;
-  }
-
-  void deviceIdentifier::load(const char *c, const size_t chars) {
-    const char *c1 = c;
-
-    while((c1 < (c + chars)) && (*c1 != '\0')) {
-      const char *c2 = c1;
-      const char *c3;
-
-      while(*c2 != '|')
-        ++c2;
-
-      c3 = (c2 + 1);
-
-      while((c3 < (c + chars)) &&
-            (*c3 != '\0') && (*c3 != '|'))
-        ++c3;
-
-      flagMap[std::string(c1, c2 - c1)] = std::string(c2 + 1, c3 - c2 - 1);
-
-      c1 = (c3 + 1);
-    }
-  }
-
-  void deviceIdentifier::load(const std::string &s) {
-    return load(s.c_str(), s.size());
-  }
-
-  std::string deviceIdentifier::flattenFlagMap() const {
-    std::string ret = "";
-
-    cFlagMapIterator it = flagMap.begin();
-
-    if(it == flagMap.end())
-      return "";
-
-    ret += it->first;
-    ret += '|';
-    ret += it->second;
-    ++it;
-
-    while(it != flagMap.end()) {
-      ret += '|';
-      ret += it->first;
-      ret += '|';
-      ret += it->second;
-
-      ++it;
-    }
-
-    return ret;
-  }
-
-  int deviceIdentifier::compare(const deviceIdentifier &b) const {
-    if(mode_ != b.mode_)
-      return (mode_ < b.mode_) ? -1 : 1;
-
-    cFlagMapIterator it1 =   flagMap.begin();
-    cFlagMapIterator it2 = b.flagMap.begin();
-
-    while(it1 != flagMap.end()) {
-      const std::string &s1 = it1->second;
-      const std::string &s2 = it2->second;
-
-      const int cmp = s1.compare(s2);
-
-      if(cmp)
-        return cmp;
-
-      ++it1;
-      ++it2;
-    }
-
-    return 0;
   }
   //==============================================
 }

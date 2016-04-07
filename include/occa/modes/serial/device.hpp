@@ -11,20 +11,20 @@
 #include "occa/library.hpp"
 
 namespace occa {
-  //---[ Data Structs ]---------------
-  struct SerialKernelData_t {
-    void *dlHandle;
-    handleFunction_t handle;
-
-    void *vArgs[2*OCCA_MAX_ARGS];
-  };
-
-  struct SerialDeviceData_t {
-    int vendor;
-  };
-  //==================================
-
   namespace serial {
+    //---[ Data Structs ]---------------
+    struct SerialKernelData_t {
+      void *dlHandle;
+      handleFunction_t handle;
+
+      void *vArgs[2*OCCA_MAX_ARGS];
+    };
+
+    struct SerialDeviceData_t {
+      int vendor;
+    };
+    //==================================
+
     class device : public occa::device_v {
       device();
       device(const device &k);
