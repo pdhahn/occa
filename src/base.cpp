@@ -1,5 +1,4 @@
 #include "occa/base.hpp"
-#include "occa/library.hpp"
 #include "occa/parser/parser.hpp"
 
 // #include "occa/Serial.hpp"
@@ -9,59 +8,6 @@
 // Use events for timing!
 
 namespace occa {
-  //---[ Mode ]-----------------------------------
-  std::string modeToStr(const occa::mode &m) {
-    if(m & Serial)   return "Serial";
-    if(m & OpenMP)   return "OpenMP";
-    if(m & OpenCL)   return "OpenCL";
-    if(m & CUDA)     return "CUDA";
-    if(m & HSA)      return "HSA";
-    if(m & Pthreads) return "Pthreads";
-
-    OCCA_CHECK(false, "Mode [" << m << "] is not valid");
-
-    return "No mode";
-  }
-
-  mode strToMode(const std::string &str) {
-    const std::string upStr = upString(str);
-
-    if(upStr == "SERIAL")   return Serial;
-    if(upStr == "OPENMP")   return OpenMP;
-    if(upStr == "OPENCL")   return OpenCL;
-    if(upStr == "CUDA")     return CUDA;
-    if(upStr == "HSA")      return HSA;
-    if(upStr == "PTHREADS") return Pthreads;
-
-    OCCA_CHECK(false, "Mode [" << str << "] is not valid");
-
-    return Serial;
-  }
-
-  std::string modes(int info, int preferredMode) {
-    std::string ret = "";
-    int info_ = info;
-    int count = 0;
-
-    if(preferredMode != 0) {
-      ret = "[" + modeToStr(preferredMode) + "]";
-      info_ &= ~preferredMode;
-      ++count;
-    }
-
-    if(info_ == Serial)   ret += std::string(count++ ? ", " : "") + "Serial";
-    if(info_ == OpenMP)   ret += std::string(count++ ? ", " : "") + "OpenMP";
-    if(info_ == OpenCL)   ret += std::string(count++ ? ", " : "") + "OpenCL";
-    if(info_ == CUDA)     ret += std::string(count++ ? ", " : "") + "CUDA";
-    if(info_ == HSA)      ret += std::string(count++ ? ", " : "") + "HSA";
-    if(info_ == Pthreads) ret += std::string(count++ ? ", " : "") + "Pthreads";
-
-    if(count)
-      return ret;
-    else
-      return "N/A";
-  }
-  //==============================================
 
   //---[ Globals & Flags ]------------------------
   const int parserVersion = 100;
@@ -78,49 +24,48 @@ namespace occa {
   void setVerboseCompilation(const bool value) {
     verboseCompilation_f = value;
   }
-
-  bool hasSerialEnabled() {
-    return true;
-  }
-
-  bool hasPthreadsEnabled() {
-    return true;
-  }
-
-  bool hasOpenMPEnabled() {
-#if OCCA_OPENMP_ENABLED
-    return true;
-#else
-    return false;
-#endif
-  }
-
-  bool hasOpenCLEnabled() {
-#if OCCA_OPENCL_ENABLED
-    return true;
-#else
-    return false;
-#endif
-  }
-
-  bool hasCUDAEnabled() {
-#if OCCA_CUDA_ENABLED
-    return true;
-#else
-    return false;
-#endif
-  }
-
-  bool hasHSAEnabled() {
-#if OCCA_HSA_ENABLED
-    return true;
-#else
-    return false;
-#endif
-  }
   //==============================================
 
   //---[ Helper Classes ]-------------------------
+  argInfoMap::argInfoMap() {}
+
+  argInfoMap::argInfoMap(const std::string &infos) {
+    if(infos.size() == 0)
+      return;
+
+    parserNS::expNode expRoot = parserNS::createOrganizedExpNodeFrom(infos);
+
+    parserNS::expNode &csvFlatRoot = *(expRoot.makeCsvFlatHandle());
+
+    for(int i = 0; i < csvFlatRoot.leafCount; ++i) {
+      parserNS::expNode &leaf = csvFlatRoot[i];
+
+      std::string &info = (leaf.leafCount ? leaf[0].value : leaf.value);
+
+      if(leaf.value != "=") {
+        std::cout << "Flag [" << info << "] was not set, skipping it\n";
+        continue;
+      }
+
+      iMap[info] = leaf[1].toString();
+    }
+
+    parserNS::expNode::freeFlatHandle(csvFlatRoot);
+  }
+
+  argInfoMap::argInfoMap(argInfoMap &aim) {
+    *this = aim;
+  }
+
+  argInfoMap& argInfoMap::operator = (argInfoMap &aim) {
+    iMap = aim.iMap;
+    return *this;
+  }
+
+  std::string& operator [] (const std::string &info) {
+    return iMap[info];
+  }
+
   bool argInfoMap::has(const std::string &info) {
     return (iMap.find(info) != iMap.end());
   }
@@ -380,131 +325,6 @@ namespace occa {
       argc += kArgs[i].argc;
     }
     return argc;
-  }
-
-  const int uint8FormatIndex  = 0;
-  const int uint16FormatIndex = 1;
-  const int uint32FormatIndex = 2;
-  const int int8FormatIndex   = 3;
-  const int int16FormatIndex  = 4;
-  const int int32FormatIndex  = 5;
-  const int halfFormatIndex   = 6;
-  const int floatFormatIndex  = 7;
-
-  const int sizeOfFormats[8] = {1, 2, 4,
-                                1, 2, 4,
-                                2, 4};
-
-  formatType::formatType(const int format__, const int count__) {
-    format_ = format__;
-    count_  = count__;
-  }
-
-  formatType::formatType(const formatType &ft) {
-    format_ = ft.format_;
-    count_  = ft.count_;
-  }
-
-  formatType& formatType::operator = (const formatType &ft) {
-    format_ = ft.format_;
-    count_  = ft.count_;
-
-    return *this;
-  }
-
-  int formatType::count() const {
-    return count_;
-  }
-
-  size_t formatType::bytes() const {
-    return (sizeOfFormats[format_] * count_);
-  }
-
-  const int readOnly  = 1;
-  const int readWrite = 2;
-
-  const occa::formatType uint8Format(uint8FormatIndex  , 1);
-  const occa::formatType uint8x2Format(uint8FormatIndex, 2);
-  const occa::formatType uint8x4Format(uint8FormatIndex, 4);
-
-  const occa::formatType uint16Format(uint16FormatIndex  , 1);
-  const occa::formatType uint16x2Format(uint16FormatIndex, 2);
-  const occa::formatType uint16x4Format(uint16FormatIndex, 4);
-
-  const occa::formatType uint32Format(uint32FormatIndex  , 1);
-  const occa::formatType uint32x2Format(uint32FormatIndex, 2);
-  const occa::formatType uint32x4Format(uint32FormatIndex, 4);
-
-  const occa::formatType int8Format(int8FormatIndex  , 1);
-  const occa::formatType int8x2Format(int8FormatIndex, 2);
-  const occa::formatType int8x4Format(int8FormatIndex, 4);
-
-  const occa::formatType int16Format(int16FormatIndex  , 1);
-  const occa::formatType int16x2Format(int16FormatIndex, 2);
-  const occa::formatType int16x4Format(int16FormatIndex, 4);
-
-  const occa::formatType int32Format(int32FormatIndex  , 1);
-  const occa::formatType int32x2Format(int32FormatIndex, 2);
-  const occa::formatType int32x4Format(int32FormatIndex, 4);
-
-  const occa::formatType halfFormat(halfFormatIndex  , 1);
-  const occa::formatType halfx2Format(halfFormatIndex, 2);
-  const occa::formatType halfx4Format(halfFormatIndex, 4);
-
-  const occa::formatType floatFormat(floatFormatIndex  , 1);
-  const occa::formatType floatx2Format(floatFormatIndex, 2);
-  const occa::formatType floatx4Format(floatFormatIndex, 4);
-
-  //  |---[ Arg Info Map ]------------------------
-  argInfoMap::argInfoMap() {}
-
-  argInfoMap::argInfoMap(const std::string &infos) {
-    if(infos.size() == 0)
-      return;
-
-    parserNS::expNode expRoot = parserNS::createOrganizedExpNodeFrom(infos);
-
-    parserNS::expNode &csvFlatRoot = *(expRoot.makeCsvFlatHandle());
-
-    for(int i = 0; i < csvFlatRoot.leafCount; ++i) {
-      parserNS::expNode &leaf = csvFlatRoot[i];
-
-      std::string &info = (leaf.leafCount ?
-                           leaf[0].value  :
-                           leaf.value);
-
-      if((info != "mode")        &&
-         (info != "UVA")         &&
-         (info != "platformID")  &&
-         (info != "deviceID")    &&
-         (info != "schedule")    &&
-         (info != "chunk")       &&
-         (info != "threadCount") &&
-         (info != "schedule")    &&
-         (info != "pinnedCores")) {
-
-        std::cout << "Flag [" << info << "] is not available, skipping it\n";
-        continue;
-      }
-
-      if(leaf.value != "=") {
-        std::cout << "Flag [" << info << "] was not set, skipping it\n";
-        continue;
-      }
-
-      iMap[info] = leaf[1].toString();
-    }
-
-    parserNS::expNode::freeFlatHandle(csvFlatRoot);
-  }
-
-  argInfoMap::argInfoMap(argInfoMap &aim) {
-    *this = aim;
-  }
-
-  argInfoMap& argInfoMap::operator = (argInfoMap &aim) {
-    iMap = aim.iMap;
-    return *this;
   }
 
   std::ostream& operator << (std::ostream &out, const argInfoMap &m) {
@@ -860,79 +680,6 @@ namespace occa {
 
     delete kHandle;
     kHandle = NULL;
-  }
-
-  kernelDatabase::kernelDatabase() :
-    kernelName(""),
-    modelKernelCount(0),
-    kernelCount(0) {}
-
-  kernelDatabase::kernelDatabase(const std::string kernelName_) :
-    kernelName(kernelName_),
-    modelKernelCount(0),
-    kernelCount(0) {}
-
-  kernelDatabase::kernelDatabase(const kernelDatabase &kdb) :
-    kernelName(kdb.kernelName),
-
-    modelKernelCount(kdb.modelKernelCount),
-    modelKernelAvailable(kdb.modelKernelAvailable),
-
-    kernelCount(kdb.kernelCount),
-    kernels(kdb.kernels),
-    kernelAllocated(kdb.kernelAllocated) {}
-
-
-  kernelDatabase& kernelDatabase::operator = (const kernelDatabase &kdb) {
-    kernelName = kdb.kernelName;
-
-    modelKernelCount     = kdb.modelKernelCount;
-    modelKernelAvailable = kdb.modelKernelAvailable;
-
-    kernelCount     = kdb.kernelCount;
-    kernels         = kdb.kernels;
-    kernelAllocated = kdb.kernelAllocated;
-
-    return *this;
-  }
-
-  void kernelDatabase::modelKernelIsAvailable(const int id) {
-    OCCA_CHECK(0 <= id,
-               "Model kernel for ID [" << id << "] was not found");
-
-    if(modelKernelCount <= id) {
-      modelKernelCount = (id + 1);
-      modelKernelAvailable.resize(modelKernelCount, false);
-    }
-
-    modelKernelAvailable[id] = true;
-  }
-
-  void kernelDatabase::addKernel(device d, kernel k) {
-    addKernel(d.dHandle->id_, k);
-  }
-
-  void kernelDatabase::addKernel(device_v *d, kernel k) {
-    addKernel(d->id_, k);
-  }
-
-  void kernelDatabase::addKernel(const int id, kernel k) {
-    OCCA_CHECK(0 <= id,
-               "Model kernel for ID [" << id << "] was not found");
-
-    if(kernelCount <= id) {
-      kernelCount = (id + 1);
-
-      kernels.resize(kernelCount);
-      kernelAllocated.resize(kernelCount, false);
-    }
-
-    kernels[id] = k;
-    kernelAllocated[id] = true;
-  }
-
-  void kernelDatabase::loadKernelFromLibrary(device_v *d) {
-    addKernel(d, library::loadKernel(d, kernelName));
   }
   //==============================================
 
@@ -1682,8 +1429,9 @@ namespace occa {
 
     dHandle->setup(aim);
 
-    dHandle->modelID_ = library::deviceModelID(dHandle->getIdentifier());
-    dHandle->id_      = library::genDeviceID();
+    // [REFACTOR]
+    dHandle->modelID_ = 0;
+    dHandle->id_      = 0;
 
     if(aim.has("UVA")) {
       if(upStringCheck(aim.get("UVA"), "enabled"))
@@ -1731,8 +1479,9 @@ namespace occa {
 
     dHandle->setup(aim);
 
-    dHandle->modelID_ = library::deviceModelID(dHandle->getIdentifier());
-    dHandle->id_      = library::genDeviceID();
+    // [REFACTOR]
+    dHandle->modelID_ = 0;
+    dHandle->id_      = 0;
 
     stream newStream = createStream();
     dHandle->currentStream = newStream.handle;
@@ -1750,12 +1499,6 @@ namespace occa {
   }
 
   uintptr_t device::memoryAllocated() const {
-    checkIfInitialized();
-    return dHandle->bytesAllocated;
-  }
-
-  // Old name for [memoryAllocated()]
-  uintptr_t device::bytesAllocated() const {
     checkIfInitialized();
     return dHandle->bytesAllocated;
   }
@@ -2058,26 +1801,6 @@ namespace occa {
 
     kernel ker;
     ker.kHandle = dHandle->buildKernelFromBinary(filename, functionName);
-    ker.kHandle->dHandle = dHandle;
-
-    return ker;
-  }
-
-  void device::cacheKernelInLibrary(const std::string &filename,
-                                    const std::string &functionName,
-                                    const kernelInfo &info_) {
-    checkIfInitialized();
-    dHandle->cacheKernelInLibrary(filename,
-                                  functionName,
-                                  info_);
-  }
-
-  kernel device::loadKernelFromLibrary(const char *cache,
-                                       const std::string &functionName) {
-    checkIfInitialized();
-
-    kernel ker;
-    ker.kHandle = dHandle->loadKernelFromLibrary(cache, functionName);
     ker.kHandle->dHandle = dHandle;
 
     return ker;
@@ -2390,22 +2113,6 @@ namespace occa {
                                const std::string &functionName) {
 
     return currentDevice.buildKernelFromBinary(filename,
-                                               functionName);
-  }
-
-  void cacheKernelInLibrary(const std::string &filename,
-                            const std::string &functionName,
-                            const kernelInfo &info_) {
-
-    return currentDevice.cacheKernelInLibrary(filename,
-                                              functionName,
-                                              info_);
-  }
-
-  kernel loadKernelFromLibrary(const char *cache,
-                               const std::string &functionName) {
-
-    return currentDevice.loadKernelFromLibrary(cache,
                                                functionName);
   }
 
