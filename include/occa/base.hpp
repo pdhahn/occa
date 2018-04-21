@@ -1571,6 +1571,14 @@ namespace occa {
 
   template <>
   inline kernelArg::kernelArg(const occa::memory &m) {
+    if(!m.mHandle) {
+      argc = 1;
+
+      args[0].data.void_ = (void*)0;
+      args[0].size       = sizeof(void*);
+      args[0].info       = kArgInfo::usePointer;
+    }
+    else
     if(m.mHandle->dHandle->fakesUva()) {
       if(!m.isATexture()) {
         argc = 1;
