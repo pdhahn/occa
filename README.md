@@ -1,110 +1,110 @@
-<a name="OCCA"></a>
-## OCCA
+<p align="center">
+  <a href="https://libocca.org">
+    <img alt="occa" src="https://libocca.org/assets/images/logo/blue.svg" width=250>
+  </a>
+</p>
+&nbsp;
+<p align="center">
+  <a href="https://travis-ci.org/libocca/occa"><img alt="Build Status" src="https://travis-ci.org/libocca/occa.svg?branch=master"></a>
+  <a href="https://codecov.io/github/libocca/occa"><img alt="codecov.io" src="https://codecov.io/github/libocca/occa/coverage.svg"></a>
+  <a href="https://gitter.im/libocca/occa?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"><img alt="Gitter" src="https://badges.gitter.im/libocca/occa.svg"></a>
+</p>
 
-[![Build Status](https://travis-ci.org/libocca/occa.svg?branch=master)](https://travis-ci.org/libocca/occa)
-[![Join the chat at https://gitter.im/libocca/occa](https://badges.gitter.im/libocca/occa.svg)](https://gitter.im/libocca/occa?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+&nbsp;
 
-OCCA is an open-source (MIT license) library used to program current multi-core/many-core architectures.
-Devices (such as CPUs, GPUs, Intel's Xeon Phi, FPGAs, etc) are abstracted using an offload-model for application development and programming for the devices is done through a C-based (OKL) or Fortran-based kernel language (OFL).
-OCCA gives developers the ability to target devices at run-time by using run-time compilation for device kernels.
+### What is OCCA?
 
-<a name="README"></a>
-## README
+In a nutshell, OCCA (like *oca*-rina) is an open-source library which aims to
+
+- Make it easy to program different types of devices (e.g. _CPU_, _GPU_, _FPGA_)
+- Provide a [unified API](https://libocca.org/#/guide/occa/introduction) for interacting with backend device APIs (e.g. _OpenMP_, _CUDA_, _OpenCL_)
+- Use just-in-time compilation to build backend kernels
+- Provide a [kernel language](https://libocca.org/#/guide/okl/introduction), a minor extension to C, to abstract programming for each backend
+
+&nbsp;
+
+### Links
+
+- [Documentation](https://libocca.org)
+- **Want to contribute?** Checkout the ['Good First Issue' issues](https://github.com/libocca/occa/issues?q=is%3Aopen+is%3Aissue+label%3A%22Good+First+Issue%22)
+- **More of a challenge?** Checkout the ['Help Needed' issues](https://github.com/libocca/occa/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue+label%3A%22Help+Wanted%22)
+- 🌟 Who is using OCCA?
+  - [Gallery](https://libocca.org/#/gallery)
+  - [Publications](https://libocca.org/#/publications)
+
+&nbsp;
 
 ### Installing
 
-Using a terminal, go to your OCCA directory
-You should see:
-   README.md (this file)
-   include
-   src
-   lib
-
-To compile `libocca.so`, type:
-
+```bash
+git clone --depth 1 https://github.com/libocca/occa.git
+cd occa
+make -j 4
 ```
+
+&nbsp;
+
+### Environment
+
+Setup environment variables inside the `occa` directory
+
+#### Linux
+
+```bash
+export PATH+=":${PWD}/bin"
+export LD_LIBRARY_PATH+=":${PWD}/lib"
+```
+
+#### Mac OSX
+
+```bash
+export PATH+=":${PWD}/bin"
+export DYLD_LIBRARY_PATH+=":${PWD}/lib"
+```
+
+&nbsp;
+
+### Hello World
+
+```bash
+cd examples/1_add_vectors/cpp
 make
-```
-
-To compile the Fortran library, setup the `OCCA_FORTRAN_ENABLED` environment variable before compiling
-
-```
-export OCCA_FORTRAN_ENABLED="1"
-```
-
-Python 2 and 3 bindings are available with OCCA.
-If you wish to setup the occa Python module, rather than using `make`, compile both `libocca.so` and the module with
-
-```
-python make.py
-```
-
-
-### Examples
-
-We have a few examples to show different features of OCCA. The addVectors example contains examples for each current supported language
-
-* C++
-* C
-* Python
-* Fortran
-* Julia
-
-#### Compile
-To compile addVectors (Hello World! style example) in C++
-
-```
-cd examples/addVectors/cpp
-make
-```
-
-#### Environment
-Setup your `LD_LIBRARY_PATH` to point to libocca.so
-
-```
-export LD_LIBRARY_PATH+=':<occa>/lib'
-```
-where `<occa>` is the OCCA directory
-
-### Run
-```
 ./main
 ```
 
-### Status
-* Linux and OSX are fully supported
-* Windows is partially supported
-  * Code is up-to-date for windows
-  * Missing compilation project/scripts
-  * Visual Studio project is out of date
+&nbsp;
 
-* OKL Status:
-  * Supports most of C (send bugs =))
-  * Preprocessor is missing variadic functions
+### CLI
 
-* OFL Status:
-  * Obsolete for now
-  * Version 0.1 supports a subset of Fortran:
-    * integer, real, character, logical, double precision
-    * function, subroutine
-    * DO, WHILE, IF, IF ELSE, ELSE
+There is an executable `occa` provided inside `bin`
 
-### Useful environment variables:
-| Environment Variable       | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| OCCA_CACHE_DIR             | Sets directory where kernels are cached (Default: ${HOME}/._occa |
-| OCCA_INCLUDE_PATH          | Adds directories to find headers |
-| OCCA_LIBRARY_PATH          | Adds directories to find libraries |
-| OCCA_CXX                   | C++ compiler used for libocca.so and run-time compilation |
-| OCCA_CXXFLAGS              | C++ compiler flags used for libocca.so and run-time compilation |
+```bash
+> occa --help
 
-#### OpenCL
-| Environment Variable       | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| OCCA_OPENCL_COMPILER_FLAGS | Adds additional OpenCL flags when compiling kernels |
+Usage: occa COMMAND
 
-#### CUDA
-| Environment Variable       | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| OCCA_CUDA_COMPILER         | Can be used to specify the CUDA compiler            |
-| OCCA_CUDA_COMPILER_FLAGS   | Adds additional OpenCL flags when compiling kernels |
+Can be used to display information of cache kernels.
+
+Commands:
+  autocomplete    Prints shell functions to autocomplete occa
+                  commands and arguments
+  cache           Cache kernels
+  clear           Clears cached files and cache locks
+  compile         Compile kernels
+  env             Print environment variables used in OCCA
+  info            Prints information about available backend modes
+  modes           Prints available backend modes
+  translate       Translate kernels
+  version         Prints OCCA library version
+
+Arguments:
+  COMMAND    Command to run
+```
+
+&nbsp;
+
+### Bash Autocomplete
+
+```bash
+. <(occa autocomplete bash)
+```

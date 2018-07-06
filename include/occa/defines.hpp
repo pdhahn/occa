@@ -1,26 +1,34 @@
+/* The MIT License (MIT)
+ *
+ * Copyright (c) 2014-2018 David Medina and Tim Warburton
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ */
+
 #ifndef OCCA_DEFINES_HEADER
 #define OCCA_DEFINES_HEADER
 
-#ifndef LINUX_OS
-#  define LINUX_OS 1
-#endif
-
-#ifndef OSX_OS
-#  define OSX_OS 2
-#endif
-
-#ifndef WINDOWS_OS
-#  define WINDOWS_OS 4
-#endif
-
-#ifndef WINUX_OS
-#  define WINUX_OS (LINUX_OS | WINDOWS_OS)
-#endif
+#include <occa/defines/compiledDefines.hpp>
 
 #ifndef OCCA_USING_VS
 #  ifdef _MSC_VER
 #    define OCCA_USING_VS 1
-#    define OCCA_OS WINDOWS_OS
+#    define OCCA_OS OCCA_WINDOWS_OS
 #  else
 #    define OCCA_USING_VS 0
 #  endif
@@ -29,14 +37,14 @@
 #ifndef OCCA_OS
 #  if defined(WIN32) || defined(WIN64)
 #    if OCCA_USING_VS
-#      define OCCA_OS WINDOWS_OS
+#      define OCCA_OS OCCA_WINDOWS_OS
 #    else
-#      define OCCA_OS WINUX_OS
+#      define OCCA_OS OCCA_WINUX_OS
 #    endif
 #  elif __APPLE__
-#    define OCCA_OS OSX_OS
+#    define OCCA_OS OCCA_MACOS_OS
 #  else
-#    define OCCA_OS LINUX_OS
+#    define OCCA_OS OCCA_LINUX_OS
 #  endif
 #endif
 
@@ -60,9 +68,9 @@
 #  define OCCA_END_EXTERN_C
 #endif
 
-#if   (OCCA_OS == LINUX_OS) || (OCCA_OS == OSX_OS)
+#if   (OCCA_OS == OCCA_LINUX_OS) || (OCCA_OS == OCCA_MACOS_OS)
 #  define OCCA_INLINE inline __attribute__ ((always_inline))
-#elif (OCCA_OS == WINDOWS_OS)
+#elif (OCCA_OS == OCCA_WINDOWS_OS)
 #  define OCCA_INLINE __forceinline
 #endif
 
@@ -84,51 +92,32 @@
 #endif
 
 //---[ Checks and Info ]----------------
-#ifndef OCCA_COMPILED_FOR_JULIA
-#  define OCCA_THROW abort()
-#else
-#  define OCCA_THROW exit(1)
-#endif
-
-#define OCCA_EMPTY_FORCE_CHECK2( _expr , file , line , func )           \
+#define OCCA_TEMPLATE_CHECK_(checkFunction, expr, filename, function, line, message) \
   do {                                                                  \
-    intptr_t expr = (_expr);                                            \
-    if( !expr ){                                                        \
-      std::cout << '\n'                                                 \
-                << "---[ Error ]--------------------------------------------\n" \
-                << "    File     : " << file << '\n'                    \
-                << "    Function : " << func << '\n'                    \
-                << "    Line     : " << line << '\n'                    \
-                << "========================================================\n"; \
-      OCCA_THROW;                                                       \
+    const bool isOK = (bool) (expr);                                    \
+    if (!isOK) {                                                        \
+      std::stringstream _check_ss;                                      \
+      _check_ss << message;                                             \
+      checkFunction(filename, function, line, _check_ss.str());         \
     }                                                                   \
   } while(0)
 
-#define OCCA_FORCE_CHECK2( _expr , _msg , file , line , func )          \
-  do {                                                                  \
-    intptr_t expr = (_expr);                                            \
-    if( !expr ){                                                        \
-      std::cout << '\n'                                                 \
-                << "---[ Error ]--------------------------------------------\n" \
-                << "    File     : " << file << '\n'                    \
-                << "    Function : " << func << '\n'                    \
-                << "    Line     : " << line << '\n'                    \
-                << "    Error    : " << _msg << '\n'                    \
-                << "========================================================\n"; \
-      OCCA_THROW;                                                       \
-    }                                                                   \
-  } while(0)
-
-#define OCCA_EMPTY_FORCE_CHECK( _expr )  OCCA_EMPTY_FORCE_CHECK2( _expr , __FILE__ , __LINE__ , __PRETTY_FUNCTION__)
-#define OCCA_FORCE_CHECK( _expr , _msg ) OCCA_FORCE_CHECK2( _expr , _msg , __FILE__ , __LINE__ , __PRETTY_FUNCTION__)
-
-#if OCCA_CHECK_ENABLED
-#  define OCCA_EMPTY_CHECK( _expr )  OCCA_EMPTY_FORCE_CHECK( _expr )
-#  define OCCA_CHECK( _expr , _msg ) OCCA_FORCE_CHECK( _expr , _msg )
+#if !OCCA_UNSAFE
+#  define OCCA_TEMPLATE_CHECK(a,b,c,d,e,f) OCCA_TEMPLATE_CHECK_(a,b,c,d,e,f)
 #else
-#  define OCCA_EMPTY_CHECK( _expr )
-#  define OCCA_CHECK( _expr , _msg )
+#  define OCCA_TEMPLATE_CHECK(a,b,c,d,e,f)
 #endif
+
+#define OCCA_ERROR3(expr, filename, function, line, message) OCCA_TEMPLATE_CHECK(occa::error, expr, filename, function, line, message)
+#define OCCA_ERROR2(expr, filename, function, line, message) OCCA_ERROR3(expr, filename, function, line, message)
+#define OCCA_ERROR(message, expr)                            OCCA_ERROR2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
+
+#define OCCA_WARNING3(expr, filename, function, line, message) OCCA_TEMPLATE_CHECK(occa::warn, expr, filename, function, line, message)
+#define OCCA_WARNING2(expr, filename, function, line, message) OCCA_WARNING3(expr, filename, function, line, message)
+#define OCCA_WARNING(message, expr)                            OCCA_WARNING2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
+
+#define OCCA_FORCE_ERROR(message)   OCCA_ERROR(message, false)
+#define OCCA_FORCE_WARNING(message) OCCA_WARNING(message, false)
 
 #define OCCA_DEFAULT_MEM_BYTE_ALIGN 32
 
@@ -282,96 +271,65 @@
 #endif
 //============================
 
+//======================================
+
+
+//---[ OCCA ]---------------------------
+#define OCCA_MAJOR_VERSION 1
+#define OCCA_MINOR_VERSION 0
+#define OCCA_PATCH_VERSION 0
+#define OCCA_VERSION       10000
+#define OCCA_VERSION_STR   "1.0.0"
+
+#define OKL_MAJOR_VERSION 0
+#define OKL_MINOR_VERSION 2
+#define OKL_PATCH_VERSION 0
+#define OKL_VERSION       10000
+#define OKL_VERSION_STR   "1.0.0"
+
 #define OCCA_MAX_ARGS 50
 //======================================
 
 
-//---[ Base ]---------------------------
-#define OCCA_KERNEL_ARG_CONSTRUCTOR(TYPE)         \
-  template <>                                     \
-  inline kernelArg::kernelArg(const TYPE &arg_){  \
-    argc                 = 1;                     \
-    args[0].data.TYPE##_ = arg_;                  \
-    args[0].size         = sizeof(TYPE);          \
-  }
-
-#define OCCA_KERNEL_ARG_CONSTRUCTOR_ALIAS(TYPE, ALIAS)  \
-  template <>                                           \
-  inline kernelArg::kernelArg(const TYPE &arg_){        \
-    argc                  = 1;                          \
-    args[0].data.ALIAS##_ = arg_;                       \
-    args[0].size          = sizeof(TYPE);               \
-  }
-
-#define OCCA_EXTRACT_DATA(MODE, CLASS)                          \
-  MODE##CLASS##Data_t &data_ = *((MODE##CLASS##Data_t*) data);
-//======================================
-
-
 //---[ OpenCL ]-------------------------
-#if OCCA_CHECK_ENABLED
-#  define OCCA_CL_CHECK( _str , _statement ) OCCA_CL_CHECK2( _str , _statement , __FILE__ , __LINE__ )
-#  define OCCA_CL_CHECK2( _str , _statement , file , line )             \
+#define OCCA_OPENCL_TEMPLATE_CHECK(checkFunction, expr, filename, function, line, message) \
   do {                                                                  \
-    cl_int _error = _statement;                                         \
-    if(_error){                                                         \
-      _error = _error < 0  ? _error : -_error;                          \
-      _error = _error < 65 ? _error : 15;                               \
-                                                                        \
-      std::cout << "Error\n"                                            \
-                << "    File    : " << file << '\n'                     \
-                << "    Line    : " << line << '\n'                     \
-                << "    Error   : OpenCL Error [ " << _error << " ]: " << occa::openclError(_error) << '\n' \
-                << "    Message : " << _str << '\n';                    \
-      OCCA_THROW;                                                       \
+    cl_int _clErrorCode = expr;                                         \
+    if (_clErrorCode) {                                                 \
+      std::stringstream _check_ss;                                      \
+      _check_ss << message;                                             \
+      checkFunction(_clErrorCode, filename, function, line, _check_ss.str()); \
     }                                                                   \
   } while(0)
 
-#else
-#  define OCCA_CL_CHECK( _str , _statement ) do { _statement; } while(0)
-#endif
+#define OCCA_OPENCL_ERROR3(expr, filename, function, line, message) OCCA_OPENCL_TEMPLATE_CHECK(occa::opencl::error, expr, filename, function, line, message)
+#define OCCA_OPENCL_ERROR2(expr, filename, function, line, message) OCCA_OPENCL_ERROR3(expr, filename, function, line, message)
+#define OCCA_OPENCL_ERROR(message, expr) OCCA_OPENCL_ERROR2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
+
+#define OCCA_OPENCL_WARNING3(expr, filename, function, line, message) OCCA_OPENCL_TEMPLATE_CHECK(occa::opencl::warn, expr, filename, function, line, message)
+#define OCCA_OPENCL_WARNING2(expr, filename, function, line, message) OCCA_OPENCL_WARNING3(expr, filename, function, line, message)
+#define OCCA_OPENCL_WARNING(message, expr) OCCA_OPENCL_WARNING2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
 //======================================
 
 
 //---[ CUDA ]---------------------------
-#if OCCA_CHECK_ENABLED
-#  define OCCA_CUDA_CHECK( _str , _statement ) OCCA_CUDA_CHECK2( _str , _statement , __FILE__ , __LINE__ )
-#  define OCCA_CUDA_CHECK2( _str , _statement , file , line )           \
+#define OCCA_CUDA_TEMPLATE_CHECK(checkFunction, expr, filename, function, line, message) \
   do {                                                                  \
-    CUresult errorCode = _statement;                                    \
-    if(errorCode){                                                      \
-      std::cout << "Error\n"                                            \
-                << "    File    : " << file << '\n'                     \
-                << "    Line    : " << line << '\n'                     \
-                << "    Error   : CUDA Error [ " << errorCode << " ]: " << occa::cudaError(errorCode) << '\n' \
-                << "    Message : " << _str << '\n';                    \
-      OCCA_THROW;                                                       \
-    }                                                                   \
-  } while(0)
-#else
-#  define OCCA_CUDA_CHECK( _str , _statement ) do { _statement; } while(0)
-#endif
-//======================================
-
-//---[ HSA ]----------------------------
-#if OCCA_CHECK_ENABLED
-#  define OCCA_HSA_CHECK( _str , _statement ) OCCA_HSA_CHECK2( _str , _statement , __FILE__ , __LINE__ )
-#  define OCCA_HSA_CHECK2( _str , _statement , file , line )            \
-  do {                                                                  \
-    hsa_status_t _error = _statement;                                   \
-    if(_error != HSA_STATUS_SUCCESS){					\
-      std::cout << "Error\n"                                            \
-                << "    File    : " << file << '\n'                     \
-                << "    Line    : " << line << '\n'                     \
-                << "    Error   : HSA Error [ " << _error << " ]: " << occa::hsaError(_error) << '\n' \
-                << "    Message : " << _str << '\n';                    \
-      OCCA_THROW;                                                       \
+    CUresult _cudaErrorCode = expr;                                     \
+    if (_cudaErrorCode) {                                               \
+      std::stringstream _check_ss;                                      \
+      _check_ss << message;                                             \
+      checkFunction(_cudaErrorCode, filename, function, line, _check_ss.str()); \
     }                                                                   \
   } while(0)
 
-#else
-#  define OCCA_CL_CHECK( _str , _statement ) do { _statement; } while(0)
-#endif
+#define OCCA_CUDA_ERROR3(expr, filename, function, line, message) OCCA_CUDA_TEMPLATE_CHECK(occa::cuda::error, expr, filename, function, line, message)
+#define OCCA_CUDA_ERROR2(expr, filename, function, line, message) OCCA_CUDA_ERROR3(expr, filename, function, line, message)
+#define OCCA_CUDA_ERROR(message, expr) OCCA_CUDA_ERROR2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
+
+#define OCCA_CUDA_WARNING3(expr, filename, function, line, message) OCCA_CUDA_TEMPLATE_CHECK(occa::cuda::warn, expr, filename, function, line, message)
+#define OCCA_CUDA_WARNING2(expr, filename, function, line, message) OCCA_CUDA_WARNING3(expr, filename, function, line, message)
+#define OCCA_CUDA_WARNING(message, expr) OCCA_CUDA_WARNING2(expr, __FILE__, __PRETTY_FUNCTION__, __LINE__, message)
 //======================================
 
 #endif
